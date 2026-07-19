@@ -1,0 +1,81 @@
+---
+title: "POST /api/approvals/:txId/approve — Approve a Transaction"
+sidebarTitle: "POST /approvals/approve"
+description: "POST /api/approvals/:txId/approve — approves a pending AI transaction and immediately submits it to the Stellar network."
+---
+
+Approve a transaction that is waiting in the manual review queue. Once you call this endpoint, Pay3 immediately signs the Stellar transaction envelope and broadcasts it to the network — no further action is needed on your part. The response includes the Stellar transaction hash you can use to track the payment on-chain. Approval requests expire 2 minutes after they are created, so act promptly after retrieving the pending list.
+
+## Endpoint
+
+```
+POST /api/approvals/:txId/approve
+```
+
+## Authentication
+
+All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
+
+```
+Authorization: Bearer <token>
+```
+
+## Path parameters
+
+<ParamField path="txId" type="string" required>
+  The UUID of the transaction to approve. Obtain this from the `transactionId` field in [GET /api/approvals/pending](/api-reference/approvals/list).
+</ParamField>
+
+## Request body
+
+No request body is required.
+
+## Response
+
+<ResponseField name="success" type="boolean" required>
+  `true` when the transaction has been successfully submitted to the Stellar network.
+</ResponseField>
+
+<ResponseField name="stellarHash" type="string" required>
+  The Stellar transaction hash. Use this to track the payment on [Stellar Expert](https://stellar.expert) or via the Stellar Horizon API.
+</ResponseField>
+
+## Error responses
+
+| Status | Meaning |
+|--------|---------|
+| `404 Not Found` | No approval request exists for the given `txId`, or it does not belong to your account. |
+| `410 Gone` | The approval request has expired (the 2-minute window elapsed before you approved). The transaction status is now `EXPIRED`. |
+
+<Warning>
+  **Approval is irreversible.** The moment you call this endpoint the transaction is signed and submitted to the Stellar network. Funds will leave your smart account immediately. There is no undo — Stellar transactions are final. Verify the `amount`, `asset`, and `recipient` in the [pending approvals list](/api-reference/approvals/list) before approving.
+</Warning>
+
+## Example request
+
+```bash
+curl -X POST https://api.pay3.dev/api/approvals/c3b2a1f0-9876-5432-fedc-ba0987654321/approve \
+  -H "Authorization: Bearer <token>"
+```
+
+## Example response
+
+```json
+{
+  "success": true,
+  "stellarHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+}
+```
+
+## Example error response — expired approval
+
+```json
+{
+  "error": "Gone",
+  "message": "This approval request has expired and can no longer be acted on."
+}
+```
+
+<Note>
+  After a successful approval you can retrieve the full transaction record — including `confirmedAt` once the Stellar network has finalized it — via [GET /api/transactions/:id](/api-reference/transactions/get).
+</Note>

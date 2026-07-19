@@ -1,0 +1,83 @@
+---
+title: "Agentic DeFi on Stellar with Pay3"
+sidebarTitle: "Overview"
+description: "Overview of Pay3's DeFi integrations — Blend lending, Phoenix swaps, and Aquarius liquidity — all controlled by AI agents within your spending policies."
+---
+
+Pay3's DeFi layer lets your AI assistant interact with Stellar-based decentralized finance protocols on your behalf — automatically earning yield, swapping tokens, managing liquidity, and preventing loan liquidations — all without you having to touch a single protocol interface yourself. Every DeFi action flows through the same policy engine that governs your payments: your daily budgets, asset allowlists, per-transaction limits, and approval thresholds apply to every protocol interaction, so you stay in control no matter how autonomously your AI operates.
+
+<Info>
+  DeFi integrations — including Blend, Phoenix, and Aquarius — are planned for **Phase 2** of the Pay3 roadmap. The features described on these pages are coming soon and are not yet available in the current release.
+</Info>
+
+## How it works
+
+When you give your AI a command like "invest my idle USDC," it doesn't guess — it calls the appropriate Pay3 MCP tool, which validates your session policy, constructs the transaction, and submits it to the relevant Soroban smart contract on Stellar. You never need to visit Blend's interface, connect a separate wallet to Phoenix, or manually track your Aquarius rewards. Your AI handles all of it inside the boundaries you've set.
+
+The flow for every DeFi action is identical to a standard payment:
+
+<Steps>
+  <Step title="You give a natural-language command">
+    Tell your AI assistant what you want — "earn yield on my USDC," "rebalance my portfolio," or "repay my loan."
+  </Step>
+  <Step title="Pay3 MCP tool is called">
+    Your AI calls the relevant Pay3 tool (`wallet.supply()`, `wallet.swap()`, `wallet.borrow()`, etc.) through the MCP server.
+  </Step>
+  <Step title="Policy engine validates the action">
+    Pay3 checks your session policy: daily budget remaining, allowed protocols, asset allowlist, per-transaction limit, and approval threshold.
+  </Step>
+  <Step title="Transaction executes on Stellar">
+    If the action is within your autonomous limits, Pay3 signs and submits the transaction using your session key. If it crosses your approval threshold, it queues for your review.
+  </Step>
+  <Step title="Your AI confirms the result">
+    Your AI reports back with confirmation, updated balances, or position details — no dashboard-hopping required.
+  </Step>
+</Steps>
+
+## Supported protocols
+
+<CardGroup cols={3}>
+  <Card title="Blend" icon="piggy-bank" href="/defi/blend">
+    Supply assets to earn yield, borrow against collateral, repay loans, and automate liquidation protection on Stellar's leading lending protocol.
+  </Card>
+  <Card title="Phoenix" icon="arrow-right-arrow-left" href="/defi/phoenix">
+    Swap XLM, USDC, and other supported tokens on Phoenix DEX — including AI-driven portfolio rebalancing at your target allocation.
+  </Card>
+  <Card title="Aquarius" icon="droplets" href="#">
+    Add and remove liquidity, claim rewards automatically, and let your AI optimize your pool positions for the best available APY.
+  </Card>
+</CardGroup>
+
+<Info>
+  **Aquarius** liquidity management documentation is coming with the Phase 2 release. In the meantime, explore Blend and Phoenix to get familiar with how agentic DeFi works on Pay3.
+</Info>
+
+## Policy presets for DeFi
+
+Standard payment policies may have limits that are too conservative for DeFi use cases like yield farming or portfolio rebalancing. Pay3 includes a **DeFi preset** that raises your daily budget and expands your allowed protocol list to cover Blend, Phoenix, and Aquarius.
+
+<Tip>
+  Switch to the **DeFi** policy preset when creating your AI session to unlock larger per-transaction limits and enable all three DeFi protocols. You can always customize individual parameters from your dashboard after applying a preset.
+</Tip>
+
+You can also build a custom policy that allows only specific protocols — for example, enabling Phoenix swaps but blocking Blend borrowing — so your AI operates within exactly the risk profile you're comfortable with.
+
+## Example AI commands
+
+Your AI understands natural language. Here are commands you can use once DeFi support is live:
+
+```text
+"Invest my idle USDC in the highest yield protocol"
+"Swap 100 XLM to USDC"
+"Rebalance my portfolio to 60% USDC and 40% XLM"
+"Repay my Blend loan before it gets liquidated"
+"Add liquidity to the XLM/USDC pool and claim any pending rewards"
+```
+
+## Security model
+
+DeFi protocol interactions use the same session-key security model as every other Pay3 action. Your AI never receives your primary wallet's private key. It operates through a temporary, policy-restricted session that expires automatically. If something looks wrong, you can revoke all AI access instantly from your dashboard using **Emergency Revoke All**.
+
+<Note>
+  DeFi actions that exceed your manual approval threshold — such as a large supply or borrow — are queued as pending approvals in your Pay3 dashboard. Your AI will notify you and wait for your sign-off before proceeding.
+</Note>

@@ -1,0 +1,81 @@
+---
+title: "GET /api/auth/me — Get Current Authenticated User"
+sidebarTitle: "GET /auth/me"
+description: "GET /api/auth/me — returns the authenticated user's ID and Stellar wallet address. Useful to verify your session is active."
+---
+
+Use this endpoint to confirm that your session is active and to retrieve your Pay3 user context — including your internal user ID, wallet ID, Stellar wallet address, network, and session expiry. This is especially useful after page load or app initialization to check whether a stored session cookie is still valid before making further API calls.
+
+## Endpoint
+
+**`GET /api/auth/me`**
+
+Authentication is **required**. Include either the `pay3_session` cookie or an `Authorization: Bearer <session-token>` header.
+
+---
+
+## Response
+
+A successful `200 OK` response returns your authenticated user context.
+
+<ResponseField name="userId" type="string">
+  Your Pay3 internal user ID. This is a stable identifier that persists across
+  sessions and wallet re-connections.
+</ResponseField>
+
+<ResponseField name="walletId" type="string">
+  The Pay3 internal record ID for your currently authenticated Stellar wallet.
+</ResponseField>
+
+<ResponseField name="walletAddress" type="string">
+  Your Stellar public key (`G...`) associated with the active session.
+</ResponseField>
+
+<ResponseField name="network" type="string">
+  The Stellar network for this session — `testnet` or `public`.
+</ResponseField>
+
+<ResponseField name="sessionExpiresAt" type="string">
+  ISO 8601 timestamp indicating when the current session token expires. Use
+  this to proactively refresh or re-authenticate before the session ends.
+</ResponseField>
+
+---
+
+## Example
+
+### Request
+
+```bash curl
+# Using the session cookie
+curl --request GET \
+  --url https://api.pay3.dev/api/auth/me \
+  --cookie 'pay3_session=your-session-token-here'
+```
+
+```bash curl
+# Using a Bearer token
+curl --request GET \
+  --url https://api.pay3.dev/api/auth/me \
+  --header 'Authorization: Bearer your-session-token-here'
+```
+
+### Response Body
+
+```json
+{
+  "userId": "usr_01hx2q3r4s5t6u7v8w9x0y1z",
+  "walletId": "wal_01hx2q3r4s5t6u7v8w9x0y1z",
+  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
+  "network": "testnet",
+  "sessionExpiresAt": "2024-11-08T12:00:00.000Z"
+}
+```
+
+---
+
+## Error Responses
+
+| HTTP Status | Description |
+|---|---|
+| `401 Unauthorized` | No session token was provided, or the token has expired or been revoked. Re-authenticate via [`POST /api/auth/challenge`](/api-reference/auth/challenge) and [`POST /api/auth/verify`](/api-reference/auth/verify). |

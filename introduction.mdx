@@ -1,0 +1,81 @@
+---
+title: "Pay3: AI-Native Payment Infrastructure on Stellar"
+sidebarTitle: "Introduction"
+description: "Pay3 lets AI agents autonomously manage wallets, make payments, and interact with DeFi — all within programmable spending policies you control."
+---
+
+Pay3 is an AI-native financial infrastructure platform built on the Stellar blockchain. It bridges the gap between autonomous AI agents and real financial transactions, giving your AI assistants the ability to securely send payments, check balances, and interact with DeFi protocols — without ever exposing your private keys.
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Connect your wallet and create your first AI session in minutes
+  </Card>
+  <Card title="How It Works" icon="circle-info" href="/how-it-works">
+    Understand the x402 payment flow and session key model
+  </Card>
+  <Card title="MCP Integration" icon="plug" href="/mcp/overview">
+    Connect Claude, ChatGPT, Cursor, or Gemini to Pay3
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference/auth/challenge">
+    Explore the full REST API
+  </Card>
+</CardGroup>
+
+## Why Pay3?
+
+Today's payment systems were designed for humans. Credit cards, static API keys, and monthly SaaS subscriptions don't scale to autonomous software agents that need to make thousands of micro-transactions per day.
+
+Pay3 solves this with a machine-native payment layer:
+
+- **Your AI agent gets its own wallet** — a Stellar keypair with delegated spending permissions, never the real private key.
+- **You set the rules** — daily budgets, per-transaction limits, allowed assets, and approved recipient lists.
+- **The policy engine enforces them** — every transaction is evaluated before it executes; out-of-policy requests are automatically rejected or queued for your approval.
+- **Everything settles on Stellar** — fast (3–5 second finality), cheap, and USDC-native.
+
+## Who Uses Pay3?
+
+<CardGroup cols={2}>
+  <Card title="AI Builders & Developers" icon="robot">
+    Build agents that autonomously pay for APIs, execute DeFi strategies, and manage funds — with a full SDK and MCP integration.
+  </Card>
+  <Card title="API & Service Providers" icon="server">
+    Monetize your API or MCP server with per-request micropayments using the x402 protocol. No subscriptions, no credit cards.
+  </Card>
+  <Card title="End Users" icon="user">
+    Give your AI assistant (Claude, ChatGPT, Cursor, Gemini) controlled financial capabilities via the Pay3 Dashboard.
+  </Card>
+  <Card title="Enterprises" icon="building">
+    Organization-level wallets, strict spending controls, audit logs, and compliance-ready transaction history.
+  </Card>
+</CardGroup>
+
+## Core Features
+
+| Feature | Description |
+|---|---|
+| **AI Wallet** | Stellar-based wallet with delegated session keys; your private key never leaves your device |
+| **Policy Engine** | Per-session daily/monthly budgets, per-tx limits, asset allowlists, and recipient restrictions |
+| **MCP Server** | Three MCP tools (`get_balance`, `transfer`, `get_transaction_history`) compatible with any MCP client |
+| **x402 Payments** | HTTP 402-based stateless micropayments for machine-to-machine API access |
+| **Soroban Smart Account** | On-chain USDC vault enforcing limits at the contract level, independent of off-chain policy |
+| **Manual Approvals** | Human-in-the-loop approval queue for high-value transactions |
+| **DeFi Integrations** | Blend lending, Phoenix swaps, and Aquarius liquidity — coming in Phase 2 |
+
+## Get Started
+
+<Steps>
+  <Step title="Connect your Stellar wallet">
+    Install the Freighter browser extension and sign in at the Pay3 Dashboard using your Stellar wallet address.
+  </Step>
+  <Step title="Link a Smart Account">
+    Deploy (or link an existing) Soroban smart account contract that acts as your AI's USDC vault.
+  </Step>
+  <Step title="Create a Spending Policy">
+    Define daily/monthly budgets, per-transaction maximums, and which assets your AI is allowed to spend.
+  </Step>
+  <Step title="Create an AI Session">
+    Generate an MCP auth token for your AI assistant and configure it in Claude Desktop, Cursor, or your agent framework.
+  </Step>
+</Steps>
+
+Ready to go? Start with the [Quick Start guide](/quickstart).

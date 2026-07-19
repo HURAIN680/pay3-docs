@@ -1,0 +1,81 @@
+---
+title: "Configure AI Spending Policies in Pay3"
+sidebarTitle: "Policies"
+description: "Create and manage AI spending policies — set daily budgets, per-transaction limits, approval thresholds, and allowed assets for AI sessions."
+---
+
+A policy is the financial rulebook for an AI session. It defines how much your AI can spend per day, how large any single transaction can be, at what amount a transaction requires your manual approval, which assets the AI is allowed to use, and how long a session created with this policy will remain active. Get your policies right before creating sessions — once a session is created, the policy attached to it is frozen in place.
+
+<Tip>
+If you're setting up Pay3 for the first time, start with the **CONSERVATIVE** preset. You can always create a more permissive policy later once you've seen how your AI agent behaves.
+</Tip>
+
+## Policy fields
+
+| Field | What it controls |
+|---|---|
+| **Name** | A human-readable label for the policy (e.g., "Coding Assistant — Low Risk") |
+| **dailyBudget** | Maximum total USD value the AI can spend across all transactions in a single day |
+| **perTransactionMax** | Maximum USD value of any single transaction the AI can execute automatically |
+| **manualApprovalThreshold** | Transactions above this USD value are held for your approval before executing |
+| **sessionDurationHours** | How many hours a session created with this policy stays active before expiring |
+| **allowedAssets** | Comma-separated list of asset codes the AI may use (e.g., `USDC, XLM`) |
+| **allowedRecipientIds** | Optional list of contact IDs — if set, the AI can only send to contacts in this list |
+
+<Note>
+`allowedRecipientIds` references contacts from your [Contacts](/dashboard/contacts) list. If this field is left empty, the AI can send to any valid Stellar address. If it is set, any payment to an address not on the list will be rejected.
+</Note>
+
+## Built-in presets
+
+Pay3 ships with four presets. Choosing a preset automatically populates all numeric fields — you can then save it as-is or adjust individual values before saving.
+
+| Preset | Daily Budget | Per-Tx Max | Approval Threshold | Session Duration | Allowed Assets |
+|---|---|---|---|---|---|
+| **CONSERVATIVE** | $100 | $20 | $15 | 24 hours | USDC, XLM |
+| **BALANCED** | $500 | $100 | $250 | 168 hours (7 days) | USDC, XLM |
+| **DEFI** | $1,000 | $250 | $500 | 168 hours (7 days) | USDC, XLM |
+| **CUSTOM** | You decide | You decide | You decide | You decide | You decide |
+
+### Understanding the presets
+
+<Accordion title="CONSERVATIVE — recommended for first-time use">
+  The CONSERVATIVE preset is designed for AI assistants that handle routine, low-value tasks — paying for API calls, small SaaS subscriptions, or microtransactions. The $15 approval threshold means you'll be asked to confirm most non-trivial payments, giving you tight oversight while still allowing the AI to handle small amounts autonomously.
+</Accordion>
+
+<Accordion title="BALANCED — general-purpose use">
+  BALANCED is a good fit for an AI assistant that handles a mix of small automated payments and occasional larger ones. The $250 threshold means the AI can execute most day-to-day transactions automatically while routing significant payments to you for review. The 7-day session duration reduces how often you need to reconfigure your client.
+</Accordion>
+
+<Accordion title="DEFI — high-throughput scenarios">
+  The DEFI preset is intended for AI agents running active DeFi strategies or high-frequency payment workflows. The higher limits and thresholds give the AI more autonomy. Only use this preset if you fully trust the AI agent's logic and have reviewed its behavior in a lower-limit environment first.
+</Accordion>
+
+<Accordion title="CUSTOM — full control">
+  Choose CUSTOM to set every field yourself. Use this when none of the presets match your workflow — for example, if you want a very long session duration with a low daily budget, or if you need to restrict the AI to a specific list of approved recipients.
+</Accordion>
+
+## Creating a policy
+
+<Steps>
+  <Step title="Open the Policies page">
+    Click **Policies** in the dashboard navigation bar.
+  </Step>
+  <Step title="Enter a policy name">
+    Type a descriptive name in the **Name** field. Choose something that makes the policy's purpose obvious — you'll see this name when selecting policies for sessions.
+  </Step>
+  <Step title="Select a preset">
+    Choose one of the four presets from the **Preset** dropdown. If you choose CUSTOM, additional fields appear for you to fill in manually.
+  </Step>
+  <Step title="Save the policy">
+    Click **Create policy**. The new policy appears in the policies list below the form, showing its name, preset type, daily budget, per-transaction max, approval threshold, and session duration.
+  </Step>
+</Steps>
+
+## Reusing policies across sessions
+
+A single policy can be attached to multiple sessions. For example, you might create one "Standard" policy and use it for both your Cursor and Claude sessions. Changes you make to a policy after sessions are created do **not** propagate to those sessions — the session retains a snapshot of the policy as it existed at creation time.
+
+<Warning>
+If you need to change the spending rules for an active session, you must revoke the session and create a new one with the updated policy. There is no way to edit the policy parameters of an existing live session.
+</Warning>

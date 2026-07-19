@@ -1,0 +1,105 @@
+---
+title: "Phoenix: AI-Automated Token Swaps on Stellar"
+sidebarTitle: "Phoenix"
+description: "Use Pay3 to let AI agents swap tokens on Phoenix DEX — including XLM to USDC conversions and automated portfolio rebalancing."
+---
+
+Phoenix is a decentralized exchange (DEX) built on Stellar Soroban where you can swap XLM, USDC, and other supported tokens at market rates. With Pay3, you don't need to visit the Phoenix interface, compare prices, or time your swaps manually — your AI executes token exchanges on your behalf, at the best available rate, within the trading limits you've configured. From a quick one-off conversion to an ongoing automated rebalancing strategy, Pay3 gives your AI the tools to manage your token allocation with no manual effort required.
+
+<Info>
+  Phoenix integration is planned for **Phase 2** of the Pay3 roadmap and is not yet available in the current release. The features described on this page are coming soon.
+</Info>
+
+## What your AI can do on Phoenix
+
+<CardGroup cols={2}>
+  <Card title="Swap XLM ↔ USDC" icon="arrow-right-arrow-left">
+    Convert between Stellar's native asset and USDC at the current market rate. Your AI handles the transaction end-to-end — no copying addresses or approving pop-ups.
+  </Card>
+  <Card title="Swap any supported pair" icon="shuffle">
+    Exchange any token pair that Phoenix supports. Your AI finds the best available route and executes at the optimal price within your slippage threshold.
+  </Card>
+  <Card title="Portfolio rebalancing" icon="scale-balanced">
+    Set a target allocation — for example, 60% USDC and 40% XLM — and your AI will periodically swap to restore that balance whenever drift exceeds your configured tolerance.
+  </Card>
+  <Card title="Full conversion" icon="coins">
+    Convert your entire balance of one asset to another. Useful for quickly moving to a stable asset during market volatility without touching the exchange yourself.
+  </Card>
+</CardGroup>
+
+## Example AI commands
+
+Tell your AI assistant what you want in plain language:
+
+```text
+"Swap 100 XLM to USDC at the best available rate"
+"Rebalance my portfolio to 60% USDC, 40% XLM"
+"Convert all my XLM to USDC"
+"Swap 50 USDC to XLM and hold"
+```
+
+## How swaps flow through Pay3
+
+<Steps>
+  <Step title="You issue a swap command">
+    Tell your AI which tokens to swap, the amount, and any target allocation you have in mind.
+  </Step>
+  <Step title="Pay3 calls the Phoenix MCP tool">
+    Your AI invokes `wallet.swap()` through the Pay3 MCP server, passing the token pair, amount, and slippage parameters.
+  </Step>
+  <Step title="Policy engine validates the action">
+    Pay3 confirms Phoenix is in your allowed protocols list, checks that both assets are permitted, and verifies the swap value falls within your daily budget and per-transaction limit.
+  </Step>
+  <Step title="Slippage check">
+    Pay3 simulates the swap and calculates the expected price impact. If the price impact exceeds your configured slippage threshold, the swap is **not executed** and your AI notifies you instead.
+  </Step>
+  <Step title="Transaction is authorized and submitted">
+    Your session key signs the Soroban transaction. Pay3 submits it to Stellar and returns the executed rate and output amount to your AI.
+  </Step>
+  <Step title="Your AI confirms the result">
+    Your AI reports the swap details — tokens exchanged, rate received, and your updated balances — so you always know exactly what happened.
+  </Step>
+</Steps>
+
+## Slippage protection
+
+Pay3 applies automatic slippage protection to every swap. Your AI will not execute a trade if the price impact exceeds the threshold configured in your session policy.
+
+<Note>
+  Phoenix swap fees are paid in **XLM**. Make sure your Pay3 smart account always holds a small XLM reserve — even if you primarily hold USDC — to cover transaction fees. If your XLM balance is too low, swap transactions will fail.
+</Note>
+
+The default slippage threshold is set conservatively to protect you from executing during periods of low liquidity or high volatility. You can adjust this in your session's advanced settings if you're comfortable with wider price ranges.
+
+## Portfolio rebalancing
+
+When you configure a target allocation, your AI monitors your current token distribution and triggers rebalancing swaps whenever your actual holdings drift beyond your tolerance band.
+
+For example, if your target is **60% USDC / 40% XLM** and XLM appreciates so that it now represents 55% of your portfolio, your AI will swap the excess XLM back to USDC to restore your target.
+
+<Tip>
+  Set a rebalancing tolerance of at least **5%** to avoid your AI executing too many small swaps in response to normal market fluctuations. Frequent small swaps mean more transaction fees — a wider band keeps your costs down while still keeping your allocation on target.
+</Tip>
+
+## Policy integration
+
+Swap values count against your session's daily budget and per-transaction limit. A rebalancing swap that converts 300 USDC worth of XLM uses 300 USDC of your daily allowance.
+
+Here's how a typical Phoenix-focused policy might look:
+
+| Setting | Recommended value |
+|---|---|
+| Daily budget | 1,000 USDC |
+| Per-transaction limit | 500 USDC |
+| Approval threshold | 750 USDC |
+| Allowed protocols | Phoenix |
+| Allowed assets | USDC, XLM |
+| Slippage threshold | 1% |
+
+Swaps above your approval threshold are queued as pending approvals in your Pay3 dashboard. Your AI will notify you and wait for your confirmation before proceeding.
+
+## Security reminders
+
+- Your AI operates through a temporary, policy-restricted session key — it never touches your primary wallet's private key.
+- Revoking your AI session from the Pay3 dashboard immediately halts all further swap activity.
+- Use **Emergency Revoke All** to cut off every active AI session instantly if you need to take back full manual control.

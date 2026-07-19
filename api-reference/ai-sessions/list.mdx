@@ -1,0 +1,94 @@
+---
+title: "GET /api/ai-sessions — List Active AI Sessions"
+sidebarTitle: "GET /ai-sessions"
+description: "GET /api/ai-sessions — returns all active AI sessions for your account, including client type, policy, and expiry time."
+---
+
+Retrieve every AI session associated with your account. Each session represents an authorized AI client — such as Cursor, Claude, or ChatGPT — that has been granted permission to initiate Stellar transactions on your behalf within the bounds of a spending policy. Use this endpoint to audit which AI assistants are currently active and to identify sessions that should be revoked.
+
+## Endpoint
+
+```
+GET /api/ai-sessions
+```
+
+## Authentication
+
+All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
+
+```
+Authorization: Bearer <token>
+```
+
+## Response
+
+The endpoint returns an array of AI session objects. Sessions with a status of `ACTIVE` are the only ones currently capable of submitting transactions.
+
+### Response fields
+
+<ResponseField name="id" type="string" required>
+  Unique UUID identifying this AI session.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Current lifecycle state of the session. One of:
+  - `ACTIVE` — session is valid and can submit transactions
+  - `EXPIRED` — session passed its `expiresAt` timestamp
+  - `REVOKED` — session was manually revoked by you
+</ResponseField>
+
+<ResponseField name="aiClientType" type="string" required>
+  The AI client associated with this session. One of `CURSOR`, `CLAUDE`, `CHATGPT`, `GEMINI`, or `OTHER`.
+</ResponseField>
+
+<ResponseField name="smartAccountId" type="string" required>
+  UUID of the smart account (Soroban contract) this session is authorized to operate on.
+</ResponseField>
+
+<ResponseField name="policyId" type="string" required>
+  UUID of the spending policy governing transaction limits and allowed assets for this session.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string" required>
+  ISO 8601 timestamp after which the session automatically transitions to `EXPIRED`.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp when the session was created.
+</ResponseField>
+
+## Example request
+
+```bash
+curl https://api.pay3.dev/api/ai-sessions \
+  -H "Authorization: Bearer <token>"
+```
+
+## Example response
+
+```json
+[
+  {
+    "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "status": "ACTIVE",
+    "aiClientType": "CURSOR",
+    "smartAccountId": "a1b2c3d4-1234-5678-abcd-ef0123456789",
+    "policyId": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
+    "expiresAt": "2025-07-15T14:30:00.000Z",
+    "createdAt": "2025-07-08T14:30:00.000Z"
+  },
+  {
+    "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "status": "REVOKED",
+    "aiClientType": "CLAUDE",
+    "smartAccountId": "a1b2c3d4-1234-5678-abcd-ef0123456789",
+    "policyId": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
+    "expiresAt": "2025-07-10T09:00:00.000Z",
+    "createdAt": "2025-07-03T09:00:00.000Z"
+  }
+]
+```
+
+<Note>
+  This endpoint returns sessions of all statuses — `ACTIVE`, `EXPIRED`, and `REVOKED` — so you can maintain a full audit history. Filter client-side on `status === "ACTIVE"` to see only sessions that can currently transact.
+</Note>

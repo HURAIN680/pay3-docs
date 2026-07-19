@@ -1,0 +1,154 @@
+---
+title: "Session Keys: Time-Bounded AI Spending Permissions"
+sidebarTitle: "Session Keys"
+description: "Session keys give AI agents delegated spending authority with hard on-chain expiry and spending caps — no private key exposure required."
+---
+
+Session keys are the mechanism that lets AI assistants act on your behalf without ever touching your main Stellar wallet. Each time you authorize an AI client in Pay3, a temporary Stellar keypair is generated specifically for that session. The keypair is registered in your Soroban smart account with a hard expiry timestamp and spending limits that the blockchain itself enforces. When the session ends — either by expiry or your own revocation — the key loses all authority immediately.
+
+## What a Session Key Is
+
+A session key is a freshly generated Stellar keypair (a public address and a private key) that Pay3 creates for a single AI session. It is not your main wallet key. It is not a permanent credential. It is a time-limited, budget-limited delegate.
+
+When Pay3 registers a session key on-chain, three parameters are written directly into your Soroban smart account vault:
+
+| Parameter | What It Controls |
+|---|---|
+| `expires_at` | Unix timestamp after which the key has zero authority — even if Pay3's backend is still running |
+| `per_tx_max` | Maximum USDC allowed in a single transaction signed by this key |
+| `daily_max` | Cumulative USDC cap across all transactions in a 24-hour window |
+
+These are not soft guidelines. The Soroban contract checks them on every `transfer()` call and rejects anything that exceeds them before any funds move.
+
+## On-Chain vs Off-Chain Enforcement
+
+Session keys participate in a two-layer security model:
+
+<CardGroup cols={2}>
+  <Card title="Off-Chain Policy Engine" icon="filter">
+    Pay3's backend evaluates your full policy rules — recipient allowlists, monthly budgets, approval thresholds, and rate limits — before the transaction is even constructed. This layer handles the intelligent, flexible checks.
+  </Card>
+  <Card title="On-Chain Soroban Contract" icon="shield-halved">
+    The smart account vault validates session expiry, per-transaction limits, and daily caps directly in the contract. These rules are enforced even if the off-chain layer is bypassed entirely.
+  </Card>
+</CardGroup>
+
+<Note>
+  On-chain enforcement is your final safety net. A session key that has expired or exceeded its daily cap cannot execute a transfer through the Soroban vault, regardless of what any other system says.
+</Note>
+
+## Session Key Lifecycle
+
+Every session key moves through a predictable sequence of states from creation to termination:
+
+<Steps>
+  <Step title="Create">
+    You authorize a new AI session in the Pay3 dashboard. Pay3 generates a fresh Stellar keypair. The private key is immediately encrypted with AES-256-GCM and stored in Pay3's backend — it is never returned to the AI client or displayed in any API response.
+  </Step>
+  <Step title="On-Chain Registration">
+    Pay3 calls `add_session()` on your Soroban smart account, writing the session key's public address, expiry timestamp, per-transaction max, and daily max into the contract's persistent storage. Your primary wallet must sign this call.
+  </Step>
+  <Step title="Active">
+    The session key is live. When the AI calls a Pay3 MCP tool like `transfer()`, Pay3's backend retrieves the encrypted session key, decrypts it in memory, signs the Stellar transaction, and submits it. The AI never handles signing material directly.
+  </Step>
+  <Step title="Expired or Revoked">
+    When `expires_at` passes, or when you call `revoke_session()`, the key loses all authority. Any subsequent transaction attempt using that session key is rejected by the Soroban contract with a `SessionExpired` or `SessionRevoked` error.
+  </Step>
+</Steps>
+
+## The Soroban Contract Functions
+
+The Pay3 smart account vault exposes two functions for session key management. Only the vault owner (your primary Stellar wallet) can call them:
+
+```rust
+// Register a new session key with spending limits and an expiry timestamp
+fn add_session(
+    env: Env,
+    session: Address,   // The session key's Stellar public address
+    expires_at: u64,    // Unix timestamp — key is dead after this moment
+    per_tx_max: i128,   // Max USDC per single transaction (in stroops)
+    daily_max: i128,    // Max cumulative USDC per 24-hour window (in stroops)
+)
+
+// Permanently revoke a session key — sets revoked = true on-chain
+fn revoke_session(
+    env: Env,
+    session: Address,   // The session key's Stellar public address to revoke
+)
+```
+
+Once `revoke_session()` is called, the contract sets `revoked = true` in the session record. Subsequent transfer attempts using that key return `Error::SessionRevoked` and no funds move.
+
+## Independent Sessions for Every AI Client
+
+Each AI assistant you connect — Claude, Cursor, ChatGPT, Gemini, or any other MCP-compatible client — gets its own completely independent session key. Revoking one does not affect the others.
+
+```
+Your Smart Account Vault
+        │
+        ├── Claude Session Key
+        │   ├── Unique keypair
+        │   ├── 24-hour expiry
+        │   ├── $20 per-tx cap
+        │   └── $100 daily cap
+        │
+        ├── Cursor Session Key
+        │   ├── Different keypair
+        │   ├── 7-day expiry
+        │   ├── $100 per-tx cap
+        │   └── $500 daily cap
+        │
+        └── ChatGPT Session Key
+            ├── Another distinct keypair
+            ├── Independent revocation
+            └── Its own policy snapshot
+```
+
+This isolation means that if one AI client is compromised or behaves unexpectedly, you revoke that single session. Your other AI assistants continue operating normally.
+
+## Revoking Sessions
+
+You have two revocation options in the Pay3 dashboard:
+
+<CardGroup cols={2}>
+  <Card title="Revoke Individual Session" icon="xmark">
+    Revoke a single AI client's session key. Useful when you want to disconnect one assistant, update its permissions, or respond to unexpected behavior. Other sessions remain active.
+  </Card>
+  <Card title="Emergency Revoke All" icon="triangle-exclamation">
+    Instantly invalidates every active session key across all AI clients. Use this if you suspect your Pay3 account is compromised or you want to immediately halt all AI financial activity.
+  </Card>
+</CardGroup>
+
+<Warning>
+  The **Emergency Revoke All** action is immediate and irreversible for active sessions. You will need to create new sessions for each AI client to restore access. Your funds remain safely in your smart account vault — revocation stops new transactions but does not move any funds.
+</Warning>
+
+## Session Key Storage Security
+
+Pay3 encrypts every session key private key with AES-256-GCM before writing it to the database. The plaintext key exists only transiently in memory during transaction signing, and only within Pay3's authorized backend signing service.
+
+Session private keys are never:
+
+- Returned in any API response
+- Sent to any AI assistant
+- Stored in application logs or error messages
+- Exposed to frontend code or the Pay3 dashboard UI
+
+<Note>
+  Session keys are encrypted at rest with AES-256-GCM. Pay3's production architecture is designed to migrate toward Hardware Security Module (HSM) signing, where even the backend application code would never handle raw key material.
+</Note>
+
+## Session Key Presets
+
+When you create a session, you can choose a preset that sets sensible defaults for the session duration and on-chain limits:
+
+| Preset | Session Duration | Per-Tx Max | Daily Cap |
+|---|---|---|---|
+| **Conservative** | 24 hours | 20 USDC | 100 USDC |
+| **Balanced** | 7 days (168 hours) | 100 USDC | 500 USDC |
+| **DeFi** | 7 days (168 hours) | 250 USDC | 1,000 USDC |
+| **Custom** | Your choice | Your choice | Your choice |
+
+<Tip>
+  Session duration affects the `expires_at` timestamp written on-chain. Shorter sessions reduce your exposure window — if a key is somehow compromised, it becomes worthless faster. Start with shorter sessions until you're confident in your AI client's behavior.
+</Tip>

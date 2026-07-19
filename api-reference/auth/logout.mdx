@@ -1,0 +1,67 @@
+---
+title: "POST /api/auth/logout — End Your Pay3 Session"
+sidebarTitle: "POST /auth/logout"
+description: "POST /api/auth/logout — invalidates your current session token and clears the session cookie."
+---
+
+Calling this endpoint immediately revokes your current Pay3 session. The server marks the session token as revoked in the database so it cannot be reused, and clears the `pay3_session` httpOnly cookie in the response. After logout, any subsequent request using the same session token or cookie will receive a `401 Unauthorized` response.
+
+## Endpoint
+
+**`POST /api/auth/logout`**
+
+Authentication is **required**. Include either the `pay3_session` cookie (set automatically by the browser) or an `Authorization: Bearer <session-token>` header.
+
+---
+
+## Request Body
+
+No request body is required for this endpoint.
+
+---
+
+## Response
+
+A successful logout returns `204 No Content` with an empty body. The `pay3_session` cookie is cleared in the `Set-Cookie` response header.
+
+<Note>
+  If no valid session token is present in the request (e.g., the cookie has
+  already expired or the token was never set), the endpoint still returns
+  `204 No Content` and clears the cookie — it is safe to call unconditionally
+  during a sign-out flow.
+</Note>
+
+---
+
+## Example
+
+### Using the session cookie (browser)
+
+```bash curl
+curl --request POST \
+  --url https://api.pay3.dev/api/auth/logout \
+  --cookie 'pay3_session=your-session-token-here'
+```
+
+### Using a Bearer token (server-to-server)
+
+```bash curl
+curl --request POST \
+  --url https://api.pay3.dev/api/auth/logout \
+  --header 'Authorization: Bearer your-session-token-here'
+```
+
+### Response
+
+```
+HTTP/1.1 204 No Content
+Set-Cookie: pay3_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Strict
+```
+
+---
+
+## Error Responses
+
+| HTTP Status | Description |
+|---|---|
+| `401 Unauthorized` | The session token is structurally invalid (malformed header or cookie). A missing or already-expired token will still return `204`. |

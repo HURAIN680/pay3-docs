@@ -1,0 +1,71 @@
+---
+title: "Manage Trusted Recipient Contacts in Pay3"
+sidebarTitle: "Contacts"
+description: "Add verified Stellar addresses to your Pay3 contacts so AI agents can send payments by name without requiring the full address."
+---
+
+Contacts let you save Stellar addresses alongside friendly names, so your AI assistant can send payments by name instead of requiring you to dictate a 56-character Stellar public key. When you tell your AI "send 10 USDC to Alice," Pay3 resolves "Alice" to Alice's verified Stellar address from your contacts list — no guessing, no address hallucination.
+
+## How name resolution works
+
+When an AI session requests a payment and provides a recipient name rather than a raw Stellar address, Pay3 resolves the name using this priority order:
+
+1. **Exact Stellar address match** — if the AI provides a full `G...` address, it's used directly.
+2. **Alias match** — the short name you assigned the contact (e.g., `alice`).
+3. **Display name match** — the full name you gave the contact (e.g., `Alice Johnson`).
+
+If no match is found in your contacts list, the payment is rejected. Pay3 never guesses or approximates recipient addresses.
+
+## Contact fields
+
+| Field | Purpose | Example |
+|---|---|---|
+| **Display name** | Full, human-readable name shown in the dashboard | `Alice Johnson` |
+| **Alias** | Short name for AI voice commands and chat instructions | `alice` |
+| **Stellar address** | The recipient's Stellar public key (starts with `G`) | `GABC...XYZ` |
+
+The alias field is optional but strongly recommended for any contact you expect your AI to reference frequently.
+
+<Tip>
+Use short, unambiguous aliases for your most frequent payment recipients. Single-word aliases like `alice`, `vendor`, or `payroll` are easiest for AI assistants to match accurately and reduce the chance of a name conflict.
+</Tip>
+
+## Adding a contact
+
+<Steps>
+  <Step title="Open the Contacts page">
+    Click **Contacts** in the dashboard navigation bar.
+  </Step>
+  <Step title="Fill in the contact form">
+    Enter a **Display name**, an optional **Alias**, and the recipient's **Stellar address** (starting with `G`). All three fields accept free-text input; the Stellar address field is validated for correct format.
+  </Step>
+  <Step title="Click Add contact">
+    Click **Add contact**. The new contact appears in the list below the form, showing the display name, alias, and the full Stellar address.
+  </Step>
+</Steps>
+
+## Deleting a contact
+
+Click **Delete** next to any contact to remove it permanently. Deleting a contact does not affect past transactions — it only prevents future payments from resolving to that address.
+
+<Warning>
+If your policy has `allowedRecipientIds` configured, deleting a contact that appears in that list will cause the AI to reject payment requests to that former contact. Update your policy's allowed recipient list after removing contacts.
+</Warning>
+
+## Using contacts with policy restrictions
+
+Your [spending policy](/dashboard/policies) has an optional `allowedRecipientIds` field. When set, the AI session is restricted to sending payments only to contacts whose IDs appear in that list. Any payment request to an address not on the approved list — even a valid Stellar address — will be rejected.
+
+This is useful when you want to guarantee that an AI assistant can only pay a fixed set of known vendors, teammates, or services, regardless of what instructions it receives.
+
+<Note>
+The `allowedRecipientIds` field takes internal Pay3 contact IDs, not Stellar addresses or aliases. When you create or edit a policy, select contacts from your existing contacts list to populate this field correctly.
+</Note>
+
+## Example: paying by name
+
+Once you've added a contact for Alice Johnson with alias `alice`, you can instruct your AI assistant naturally:
+
+> *"Send 25 USDC to alice for the design invoice."*
+
+Pay3 resolves `alice` → `Alice Johnson` → `GABC...XYZ` and executes the payment (or queues it for approval if it's above your policy threshold). The full Stellar address, resolved contact name, and transaction status all appear in your [Transactions](/dashboard/transactions) history.

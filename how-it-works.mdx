@@ -1,0 +1,240 @@
+---
+title: "How Pay3 Handles AI Payments End to End"
+sidebarTitle: "How It Works"
+description: "Follow a payment from the moment your AI makes a request to on-chain Stellar settlement — and learn how session keys and policies keep you in control."
+---
+
+Pay3 sits between your AI assistant and the Stellar blockchain, acting as a secure execution layer that validates every financial action against your rules before anything reaches the network. This page explains the two core payment flows, the session key security model that protects your private key, and the three-level decision engine that decides whether a payment executes automatically, waits for your approval, or gets rejected outright.
+
+## The x402 API payment flow
+
+The x402 protocol is an open standard that lets AI agents pay for API calls the same way a browser pays for a web page — with a cryptographic receipt attached to the HTTP request. Pay3 implements x402 natively on Stellar, making it possible for your AI to discover and access paid data feeds, tools, and services without any human involvement.
+
+<Steps>
+
+  <Step title="AI makes an unauthenticated request">
+    Your AI agent sends a normal HTTP request to an API or MCP server — no payment token, no API key. The server checks whether a valid payment proof is attached.
+  </Step>
+
+  <Step title="Server responds with HTTP 402 Payment Required">
+    The server returns `402 Payment Required` with a payment specification: the **price**, the **asset** (e.g. USDC), and an optional **memo** that identifies the resource.
+  </Step>
+
+  <Step title="AI asks Pay3 to execute the payment">
+    The AI passes the 402 details to the Pay3 SDK. Pay3 validates the request against the active session policy before doing anything else.
+  </Step>
+
+  <Step title="Pay3 signs and submits a Stellar transaction">
+    The SDK uses the session keypair to sign a Stellar payment transaction and submits it to the Stellar network via the Soroban vault or Horizon.
+  </Step>
+
+  <Step title="Stellar confirms and Pay3 returns a payment proof">
+    Stellar settles the transaction in 3–5 seconds. Pay3 packages the confirmed transaction hash into a signed **x402 Payment Proof token** and returns it to the AI.
+  </Step>
+
+  <Step title="AI resends the request with the payment proof">
+    The AI attaches the x402 token as an HTTP header and retries the original request.
+  </Step>
+
+  <Step title="Server verifies on Stellar and delivers the resource">
+    The API server queries Stellar to confirm the transaction is real, then unlocks the requested data, computation, or tool response.
+  </Step>
+
+</Steps>
+
+```text
+AI Agent ──► API Server
+                │
+                ◄── HTTP 402 (price, asset, memo)
+                │
+AI Agent ──► Pay3 SDK ──► Stellar Network
+                │               │
+                │          ◄── Confirmation
+                │
+             x402 Proof Token
+                │
+AI Agent ──► API Server (with proof header)
+                │
+             ◄── Resource delivered
+```
+
+---
+
+## The transfer flow (direct payments)
+
+When you ask your AI to send funds directly — "pay 5 USDC to John" — it calls the `transfer` MCP tool. Here is exactly what happens from that call to the moment the recipient sees the funds.
+
+<Steps>
+
+  <Step title="AI calls transfer(recipient, asset, amount)">
+    The AI invokes the `transfer` tool with three arguments: who to pay, which asset, and how much. It also supplies an `idempotency_key` — a stable identifier for this specific payment intent.
+
+    <Note>
+      Idempotency keys protect you from duplicate payments. If your AI retries a transfer (e.g. after a timeout) using the same key, Pay3 recognises the duplicate and returns the original result instead of executing a second transaction.
+    </Note>
+  </Step>
+
+  <Step title="MCP server authenticates the token">
+    The Pay3 MCP server validates the `PAY3_MCP_AUTH_TOKEN` from the session configuration. If the token is expired, revoked, or malformed, the request is rejected immediately and the AI receives an error.
+  </Step>
+
+  <Step title="Recipient is resolved">
+    Pay3 looks up the recipient string. It can be:
+    - A **verified contact name or alias** stored in your Pay3 contacts (e.g. `"John"`)
+    - A raw **Stellar public key** (e.g. `GDQP2KPQ…`)
+
+    If the name cannot be resolved to a unique Stellar address, the transfer is rejected with a clear error message.
+  </Step>
+
+  <Step title="Policy engine evaluates the transfer">
+    This is the most important step. Pay3 loads the **policy snapshot** that was attached to the session at creation time and runs the following checks in order:
+
+    - Is the asset allowed? (e.g. USDC, XLM)
+    - Does the amount exceed the **per-transaction maximum**?
+    - Does today's spending plus this amount exceed the **daily budget**?
+    - Is the recipient on any blocklist?
+    - Has the session expired?
+
+    The result is one of three outcomes described in the next section.
+  </Step>
+
+  <Step title="Policy engine returns a decision">
+    Based on the checks above, the payment lands in one of three states:
+
+    | Decision | Condition | What happens next |
+    |---|---|---|
+    | `AUTO_EXECUTE` | Amount ≤ manual approval threshold, all checks pass | Proceeds immediately to step 6 |
+    | `PENDING_APPROVAL` | Amount > threshold, all other checks pass | Queued in your dashboard |
+    | `REJECT` | Any check fails (wrong asset, over budget, blocked recipient) | Error returned to AI |
+
+  </Step>
+
+  <Step title="AUTO_EXECUTE: session key decrypted and transaction submitted">
+    For auto-executed payments, Pay3:
+    1. Decrypts the session keypair stored server-side.
+    2. Constructs a Stellar payment transaction.
+    3. Signs it with the session key and submits it to the Stellar network via the Soroban vault contract or Horizon API.
+    4. Waits for confirmation (typically 3–5 seconds).
+  </Step>
+
+  <Step title="Budget updated, audit log written, result returned">
+    On success, Pay3 records the spend against today's budget counter, writes an immutable audit log entry (timestamp, amount, asset, recipient, transaction hash), and returns the result to the AI — including the Stellar transaction hash as cryptographic proof.
+  </Step>
+
+</Steps>
+
+---
+
+## Three-level execution model
+
+Every payment decision passes through the same three-outcome engine. Understanding it tells you exactly what your AI can do autonomously, what requires your attention, and what gets blocked entirely.
+
+<CardGroup cols={3}>
+  <Card title="AUTO_EXECUTE" icon="bolt">
+    The amount is at or below your policy's **manual approval threshold** and all other checks pass. Pay3 executes the transaction immediately on Stellar. Your AI receives a confirmed transaction hash in the same response.
+  </Card>
+  <Card title="PENDING_APPROVAL" icon="clock">
+    The amount exceeds your approval threshold but does not violate any hard limits. Pay3 queues the payment in your dashboard. You have **2 minutes** to approve or reject it before the request expires.
+  </Card>
+  <Card title="REJECT" icon="ban">
+    The payment violates policy — wrong asset, over daily budget, over per-transaction maximum, or blocked recipient. Pay3 returns a descriptive error to the AI. No transaction is ever attempted on Stellar.
+  </Card>
+</CardGroup>
+
+<Warning>
+  **Pending approvals expire after 2 minutes.** If you don't act in time, the payment is automatically cancelled and your AI receives a timeout error. The AI may retry, which creates a new approval request — with a fresh 2-minute window.
+</Warning>
+
+To review and act on pending approvals, open the **Sessions** page in your dashboard. Approved payments execute immediately on Stellar; rejected ones are logged and discarded.
+
+---
+
+## Session key security model
+
+Pay3's security model is built around one principle: **your AI never has access to your private key**. Here is how that guarantee is enforced at every layer.
+
+<Steps>
+
+  <Step title="A temporary session keypair is generated">
+    When you create a session, Pay3 generates a brand-new Stellar keypair (the **session key**) dedicated to that session. The session private key is encrypted and stored server-side — your primary wallet key is never involved in any AI transaction.
+  </Step>
+
+  <Step title="The session key is registered on-chain in your Soroban vault">
+    Your Soroban smart account contract receives an `add_session` call that records:
+    - The session public key
+    - The session expiry timestamp
+    - The per-transaction maximum (from your policy)
+    - The daily maximum (from your policy)
+
+    These limits are **enforced at the contract level**, independent of the Pay3 backend. Even if the off-chain policy engine were bypassed entirely, the contract would reject any transaction that exceeds the registered limits.
+  </Step>
+
+  <Step title="Policy snapshot is attached at session creation">
+    The policy parameters are snapshotted into the session record when you create the session. Changing a policy after session creation does not affect existing sessions — you need to create a new session to pick up updated limits.
+  </Step>
+
+  <Step title="Every tool call is authenticated by MCP token">
+    The AI presents its `PAY3_MCP_AUTH_TOKEN` on every tool call. Pay3 links the token to the session record, verifies it hasn't been revoked, and loads the associated smart account and policy snapshot.
+  </Step>
+
+  <Step title="Sessions expire automatically">
+    Session keys have a hard expiry baked into the on-chain contract. Once the expiry timestamp passes, the Soroban contract refuses to authorise any further transactions — no backend intervention required.
+  </Step>
+
+  <Step title="You can revoke all sessions instantly">
+    In the **Sessions** dashboard, click **Revoke** next to any session. Pay3 immediately invalidates the MCP token, and the session key is deregistered from your vault contract. Your AI loses payment capability for that session at once.
+  </Step>
+
+</Steps>
+
+### What your AI can and cannot do
+
+| | Your AI |
+|---|---|
+| ✅ Check balances | Can call `get_balance` at any time |
+| ✅ Send payments within policy limits | Executes autonomously via session key |
+| ✅ View transaction history | Can call `get_transaction_history` |
+| ❌ Access your primary private key | Never exposed, not even to the Pay3 backend |
+| ❌ Exceed per-transaction or daily limits | Blocked by both the policy engine and the on-chain contract |
+| ❌ Use disallowed assets or recipients | Rejected at the policy evaluation step |
+| ❌ Continue after session expiry | Contracts enforces expiry on-chain |
+
+---
+
+## Full system architecture
+
+To put everything together, here is the path every AI-initiated action takes through the Pay3 stack:
+
+```text
+Your AI Assistant
+       │
+       ▼  (MCP tool call + auth token)
+  Pay3 MCP Server
+       │
+       ▼  (token validation)
+  Pay3 Backend API
+       │
+   ┌───┴───────────┐
+   ▼               ▼
+Policy Engine   Session Manager
+   │               │
+   └───────┬───────┘
+           ▼
+   Transaction Engine
+           │
+   Stellar JavaScript SDK
+           │
+           ▼
+  Soroban Smart Contract
+  (on-chain limit enforcement)
+           │
+           ▼
+     Stellar Network
+           │
+      ┌────┴────┐
+      ▼         ▼
+   Blend     Phoenix    (+ Aquarius for liquidity)
+ (lending)  (swaps)
+```
+
+Every step from **Policy Engine** downward runs only after the policy check passes. The Soroban contract provides a final, trust-minimised safety net that operates independently of the Pay3 backend.

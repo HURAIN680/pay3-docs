@@ -1,13 +1,11 @@
 {
-  "$schema": "https://mintlify.com/docs.json",
-  "name": "Pay3",
+  "projectType": "saas",
+  "projectName": "Pay3",
+  "projectDescription": "Pay3 is an AI-native payment infrastructure on Stellar that enables AI agents to autonomously manage wallets, make payments, and interact with DeFi — all within programmable user-defined spending policies.",
   "theme": "luma",
-  "colors": {
-    "primary": "#6C47FF",
-    "light": "#EDE9FF",
-    "dark": "#3A1FA8"
-  },
-  "favicon": "/favicon.svg",
+  "primaryColor": "#6C47FF",
+  "lightColor": "#EDE9FF",
+  "darkColor": "#3A1FA8",
   "navigation": {
     "tabs": [
       {
@@ -111,10 +109,51 @@
       }
     ]
   },
-  "navbar": {
-    "primary": {
-      "type": "github",
-      "href": "https://github.com/debuuuuuu/PAY3"
-    }
-  }
+  "keyFeatures": [
+    "Programmable AI Wallets — Stellar-based wallets with delegated permissions for AI agents, no private key exposure",
+    "Session Keys — Ephemeral Soroban session keypairs with time-bound, budget-limited spending permissions",
+    "Policy Engine — Three-tier execution model (Auto / Pending Approval / Reject) with daily/monthly budgets and per-tx limits",
+    "MCP Server — Model Context Protocol server exposing get_balance, transfer, and get_transaction_history tools to any MCP-compatible AI assistant",
+    "x402 Payments — HTTP 402-based stateless micropayments for machine-to-machine API access",
+    "Soroban Smart Account — On-chain USDC vault contract enforcing session limits independently of off-chain policy",
+    "Manual Approval Workflow — Human-in-the-loop approval for transactions exceeding configurable thresholds",
+    "DeFi Integrations — Blend lending/borrowing, Phoenix swaps, Aquarius liquidity management via AI",
+    "Contacts & Recipient Resolution — Named address book for AI-safe recipient lookup by alias or display name",
+    "Audit Logs & Analytics — Full transaction lifecycle tracking, budget usage, and cost attribution"
+  ],
+  "publicApiSurface": [
+    "POST /api/auth/challenge",
+    "POST /api/auth/verify",
+    "POST /api/auth/logout",
+    "GET /api/auth/me",
+    "GET /api/wallet/overview",
+    "GET /api/smart-accounts",
+    "POST /api/smart-accounts",
+    "GET /api/policies",
+    "POST /api/policies",
+    "GET /api/policies/:id",
+    "GET /api/ai-sessions",
+    "POST /api/ai-sessions",
+    "POST /api/ai-sessions/revoke-all",
+    "DELETE /api/ai-sessions/:id",
+    "GET /api/contacts",
+    "POST /api/contacts",
+    "DELETE /api/contacts/:id",
+    "GET /api/approvals/pending",
+    "POST /api/approvals/:txId/approve",
+    "GET /api/transactions",
+    "GET /api/transactions/:id",
+    "GET /api/dashboard",
+    "MCP tool: get_balance",
+    "MCP tool: transfer",
+    "MCP tool: get_transaction_history",
+    "Soroban: initialize(owner, usdc_token)",
+    "Soroban: deposit(from, amount)",
+    "Soroban: withdraw(to, amount)",
+    "Soroban: add_session(session, expires_at, per_tx_max, daily_max)",
+    "Soroban: revoke_session(session)",
+    "Soroban: transfer(session, to, amount)",
+    "Soroban: get_balance()",
+    "Soroban: get_session(session)"
+  ]
 }

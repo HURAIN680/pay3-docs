@@ -1,0 +1,134 @@
+---
+title: "POST /api/auth/verify — Verify Wallet Signature and Sign In"
+sidebarTitle: "POST /auth/verify"
+description: "POST /api/auth/verify — verifies a Stellar wallet signature, creates a session, and sets the pay3_session cookie on success."
+---
+
+After you've received a challenge from [`POST /api/auth/challenge`](/api-reference/auth/challenge) and signed the `message` field with your Stellar wallet, submit the signature here to complete sign-in. Pay3 verifies the signature against the challenge, atomically marks it as consumed, creates your session, and — for browser clients — sets an httpOnly `pay3_session` cookie automatically.
+
+## Endpoint
+
+**`POST /api/auth/verify`**
+
+No authentication is required to call this endpoint.
+
+---
+
+## Request Body
+
+<ParamField body="walletAddress" type="string" required>
+  The same Stellar public key (`G...`) you used when requesting the challenge.
+</ParamField>
+
+<ParamField body="nonce" type="string" required>
+  The `nonce` string returned by `POST /api/auth/challenge`. Pay3 uses this
+  to look up the exact challenge record server-side.
+</ParamField>
+
+<ParamField body="signature" type="string" required>
+  Your Ed25519 signature of the challenge `message`, encoded as **base64** (or
+  as a 128-character lowercase hex string). Pay3 accepts both raw Ed25519
+  signatures and SEP-53 Freighter-style signatures (where the message is
+  pre-hashed as `SHA256("Stellar Signed Message:\n" + message)` before signing).
+</ParamField>
+
+---
+
+## Response
+
+A successful `200 OK` response confirms authentication and returns the new session context.
+
+<ResponseField name="userId" type="string">
+  The Pay3 internal user ID associated with your wallet. Stable across sessions.
+</ResponseField>
+
+<ResponseField name="walletId" type="string">
+  The Pay3 internal wallet record ID for the authenticated Stellar address.
+</ResponseField>
+
+<ResponseField name="walletAddress" type="string">
+  Your Stellar public key, normalized and echoed back.
+</ResponseField>
+
+<ResponseField name="network" type="string">
+  The Stellar network for this session — `testnet` or `public`.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string">
+  ISO 8601 timestamp indicating when the session token expires.
+</ResponseField>
+
+<Warning>
+  The `pay3_session` cookie is set as **httpOnly** and is not accessible to
+  JavaScript. For browser clients this is the recommended authentication
+  mechanism — the cookie is sent automatically with every subsequent request.
+
+  For **server-to-server or CLI usage** where cookies are not practical, read
+  the `sessionToken` from the response body (only present in non-browser
+  contexts) and pass it via the `Authorization: Bearer <session-token>` header
+  on all protected endpoints.
+</Warning>
+
+---
+
+## Signature Formats
+
+Pay3 supports two signature formats, detected automatically:
+
+| Format | Description |
+|---|---|
+| **Base64 (64 bytes decoded)** | Standard Ed25519 signature — produced by most programmatic signers and the Stellar SDK. |
+| **Hex (128 lowercase chars)** | Alternative encoding of the same 64-byte Ed25519 signature. |
+
+Freighter's `signMessage()` produces a SEP-53 signature (hashed before signing). Pay3 verifies both the raw and SEP-53 variants transparently — you do not need to pre-hash the message yourself.
+
+---
+
+## Example
+
+### Request
+
+```bash curl
+curl --request POST \
+  --url https://api.pay3.dev/api/auth/verify \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
+    "nonce": "8f3a92b1c4e07d56af2190be",
+    "signature": "base64encodedSignatureHere=="
+  }'
+```
+
+### Request Body
+
+```json
+{
+  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
+  "nonce": "8f3a92b1c4e07d56af2190be",
+  "signature": "base64encodedSignatureHere=="
+}
+```
+
+### Response Body
+
+```json
+{
+  "userId": "usr_01hx2q3r4s5t6u7v8w9x0y1z",
+  "walletId": "wal_01hx2q3r4s5t6u7v8w9x0y1z",
+  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
+  "network": "testnet",
+  "expiresAt": "2024-11-08T12:00:00.000Z"
+}
+```
+
+---
+
+## Error Responses
+
+| HTTP Status | Error Code | Description |
+|---|---|---|
+| `400 Bad Request` | `CHALLENGE_NOT_FOUND` | No challenge found for the supplied nonce. |
+| `400 Bad Request` | `CHALLENGE_WALLET_MISMATCH` | The wallet address doesn't match the one the challenge was issued for. |
+| `400 Bad Request` | `CHALLENGE_CONSUMED` | This challenge has already been used to sign in. |
+| `400 Bad Request` | `CHALLENGE_EXPIRED` | The 5-minute challenge window has passed — request a new one. |
+| `401 Unauthorized` | `INVALID_SIGNATURE` | The signature could not be verified against the challenge message. |

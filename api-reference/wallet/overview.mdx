@@ -1,0 +1,138 @@
+---
+title: "GET /api/wallet/overview — Wallet Balances and Summary"
+sidebarTitle: "GET /wallet/overview"
+description: "GET /api/wallet/overview — returns your Stellar wallet's asset balances across XLM and USDC on testnet or mainnet."
+---
+
+The wallet overview endpoint gives you a complete snapshot of your Pay3 wallet. It returns your Stellar account's on-chain asset balances — including native XLM and any issued assets such as USDC — fetched live from the Stellar network, along with a summary of the smart accounts you have linked to this wallet. Use it to power dashboards, balance displays, or pre-flight checks before initiating payments.
+
+## Endpoint
+
+**`GET /api/wallet/overview`**
+
+Authentication is **required**. Include either the `pay3_session` cookie or an `Authorization: Bearer <session-token>` header.
+
+---
+
+## Response
+
+A successful `200 OK` response returns your wallet metadata, live balances, and linked smart accounts.
+
+<ResponseField name="wallet" type="object">
+  Metadata about your Pay3 wallet record.
+
+  <Expandable title="wallet fields">
+    <ResponseField name="wallet.id" type="string">
+      Pay3 internal wallet record ID.
+    </ResponseField>
+    <ResponseField name="wallet.publicAddress" type="string">
+      Your Stellar public key (`G...`).
+    </ResponseField>
+    <ResponseField name="wallet.network" type="string">
+      The Stellar network — `TESTNET` or `MAINNET`.
+    </ResponseField>
+    <ResponseField name="wallet.isPrimary" type="boolean">
+      Whether this is your primary wallet for the authenticated user account.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="balances" type="array">
+  An array of asset balance objects fetched live from Stellar Horizon.
+
+  <Expandable title="balance item fields">
+    <ResponseField name="balances[].asset" type="string">
+      The asset code — `XLM` for native lumens, or a 1–12 character code for
+      issued assets (e.g., `USDC`).
+    </ResponseField>
+    <ResponseField name="balances[].balance" type="string">
+      The current balance as a decimal string (e.g., `"100.0000000"`).
+      Stellar balances have 7 decimal places of precision.
+    </ResponseField>
+    <ResponseField name="balances[].issuer" type="string">
+      The Stellar public key of the asset issuer. Present for all non-native
+      assets; omitted for `XLM`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="smartAccounts" type="array">
+  Smart account contracts linked to this wallet. See
+  [`GET /api/smart-accounts`](/api-reference/smart-accounts/list) for full
+  detail on each account.
+
+  <Expandable title="smart account item fields">
+    <ResponseField name="smartAccounts[].id" type="string">
+      Pay3 internal smart account record ID.
+    </ResponseField>
+    <ResponseField name="smartAccounts[].contractId" type="string">
+      The Soroban contract address (`C...`).
+    </ResponseField>
+    <ResponseField name="smartAccounts[].network" type="string">
+      Network the contract is deployed on — `TESTNET` or `MAINNET`.
+    </ResponseField>
+    <ResponseField name="smartAccounts[].createdAt" type="string">
+      ISO 8601 timestamp of when this smart account was linked.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<Note>
+  Balances are fetched live from the Stellar Horizon API on every request. In
+  high-frequency scenarios, consider caching the response client-side for a few
+  seconds to avoid rate-limiting on the Stellar network.
+</Note>
+
+---
+
+## Example
+
+### Request
+
+```bash curl
+curl --request GET \
+  --url https://api.pay3.dev/api/wallet/overview \
+  --header 'Authorization: Bearer your-session-token-here'
+```
+
+### Response Body
+
+```json
+{
+  "wallet": {
+    "id": "wal_01hx2q3r4s5t6u7v8w9x0y1z",
+    "publicAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
+    "network": "TESTNET",
+    "isPrimary": true
+  },
+  "balances": [
+    {
+      "asset": "XLM",
+      "balance": "9872.3401200"
+    },
+    {
+      "asset": "USDC",
+      "balance": "250.0000000",
+      "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
+    }
+  ],
+  "smartAccounts": [
+    {
+      "id": "sa_01hx2q3r4s5t6u7v8w9x0y1z",
+      "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE",
+      "network": "TESTNET",
+      "createdAt": "2024-11-01T10:30:00.000Z"
+    }
+  ]
+}
+```
+
+---
+
+## Error Responses
+
+| HTTP Status | Description |
+|---|---|
+| `401 Unauthorized` | Missing or invalid session. |
+| `404 Not Found` | No wallet record found for the authenticated user. |
+| `502 Bad Gateway` | Stellar Horizon returned an error fetching live balances. |

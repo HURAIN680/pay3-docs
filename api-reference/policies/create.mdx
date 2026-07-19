@@ -1,0 +1,118 @@
+---
+title: "POST /api/policies — Create a Spending Policy"
+sidebarTitle: "POST /policies"
+description: "POST /api/policies — creates a new AI spending policy with budget limits, transaction caps, and allowed assets."
+---
+
+Create a spending policy to define how much an AI session can spend, which assets it can use, and when transactions require your manual approval before hitting the Stellar network. Every AI session must be backed by exactly one policy. You can create a policy from a managed preset (with sensible defaults already filled in) or define completely custom limits for advanced use cases.
+
+## Endpoint
+
+```
+POST /api/policies
+```
+
+## Authentication
+
+All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
+
+```
+Authorization: Bearer <token>
+```
+
+## Request body
+
+<ParamField body="name" type="string" required>
+  A human-readable display name for this policy, e.g. `"Low-Risk Trading Bot"`. Maximum 120 characters.
+</ParamField>
+
+<ParamField body="preset" type="string" required>
+  The template to base this policy on. Must be one of `CONSERVATIVE`, `BALANCED`, `DEFI`, or `CUSTOM`. When using a managed preset, Pay3 fills in all budget fields automatically — you only need to supply `name` and `preset`. Use `CUSTOM` to specify your own limits.
+</ParamField>
+
+<ParamField body="dailyBudget" type="number">
+  *(Required when `preset` is `CUSTOM`)* Maximum total spend per calendar day, in USD. Resets at midnight UTC.
+</ParamField>
+
+<ParamField body="perTransactionMax" type="number">
+  *(Required when `preset` is `CUSTOM`)* Hard cap on a single transaction, in USD. Any transaction request above this amount is rejected immediately by the policy engine.
+</ParamField>
+
+<ParamField body="manualApprovalThreshold" type="number">
+  *(Required when `preset` is `CUSTOM`)* Transactions exceeding this USD amount (but within `perTransactionMax`) are held in the approval queue and require your explicit confirmation before execution.
+</ParamField>
+
+<ParamField body="sessionDurationHours" type="number">
+  *(Required when `preset` is `CUSTOM`)* How many hours a session created with this policy stays active before expiring automatically.
+</ParamField>
+
+<ParamField body="allowedAssets" type="array">
+  *(Required when `preset` is `CUSTOM`)* Array of asset ticker strings the AI is permitted to transact with, e.g. `["USDC", "XLM"]`. Any transaction involving an asset not in this list will be rejected.
+</ParamField>
+
+<ParamField body="allowedRecipientIds" type="array">
+  *(Optional)* Array of contact UUIDs from your Pay3 address book. When set, the AI may only send funds to these contacts. Omit to allow transfers to any Stellar address.
+</ParamField>
+
+## Response
+
+Returns the newly created policy object in full. The response shape mirrors the objects returned by [GET /api/policies](/api-reference/policies/list).
+
+<Tip>
+  For most use cases, start with a managed preset (`CONSERVATIVE`, `BALANCED`, or `DEFI`). Each preset ships with carefully chosen defaults — you can always tighten them by creating a `CUSTOM` policy later once you know your AI's spending patterns.
+</Tip>
+
+## Example request — using a preset
+
+```bash
+curl -X POST https://api.pay3.dev/api/policies \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Balanced Preset",
+    "preset": "BALANCED"
+  }'
+```
+
+## Example request — custom policy
+
+```bash
+curl -X POST https://api.pay3.dev/api/policies \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "My Custom Policy",
+    "preset": "CUSTOM",
+    "dailyBudget": 250,
+    "perTransactionMax": 75,
+    "manualApprovalThreshold": 50,
+    "sessionDurationHours": 72,
+    "allowedAssets": ["USDC", "XLM"],
+    "allowedRecipientIds": [
+      "b5c6d7e8-1234-5678-abcd-ef0123456789"
+    ]
+  }'
+```
+
+## Example response
+
+```json
+{
+  "id": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
+  "name": "My Custom Policy",
+  "preset": "CUSTOM",
+  "dailyBudget": "250.0000000",
+  "perTransactionMax": "75.0000000",
+  "manualApprovalThreshold": "50.0000000",
+  "sessionDurationHours": 72,
+  "allowedAssets": ["USDC", "XLM"],
+  "allowedRecipientIds": ["b5c6d7e8-1234-5678-abcd-ef0123456789"],
+  "isActive": true,
+  "createdAt": "2025-07-08T14:30:00.000Z",
+  "updatedAt": "2025-07-08T14:30:00.000Z"
+}
+```
+
+<Note>
+  Preset budget values (for `CONSERVATIVE`, `BALANCED`, and `DEFI`) are fixed by Pay3 and cannot be overridden in the request body. To use different limits, choose `CUSTOM`.
+</Note>

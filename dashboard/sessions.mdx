@@ -1,0 +1,101 @@
+---
+title: "Manage AI Sessions and MCP Auth Tokens"
+sidebarTitle: "Sessions"
+description: "Create, configure, and revoke AI sessions for Claude, Cursor, ChatGPT, and other MCP-compatible AI assistants in Pay3."
+---
+
+A session is a time-limited permission grant that allows a specific AI assistant to request payments on your behalf. Each session is tied to exactly one smart account (the vault it draws from) and one spending policy (the rules it must follow). When the session expires — or when you revoke it — the AI loses all ability to request transactions, even if it still holds the MCP auth token.
+
+## Before you create a session
+
+Make sure you have:
+- At least one [smart account](/dashboard/smart-accounts) linked to Pay3
+- At least one [spending policy](/dashboard/policies) created
+- Your AI client open and ready to receive configuration
+
+## Creating a session
+
+<Steps>
+  <Step title="Open the Sessions page">
+    Click **Sessions** in the dashboard navigation bar.
+  </Step>
+  <Step title="Select a smart account">
+    Under **Create session**, choose the smart account (Soroban vault) this session will draw funds from. The dropdown shows your linked contracts, truncated for readability.
+  </Step>
+  <Step title="Select a policy">
+    Choose the spending policy that governs this session. The policy determines daily budgets, per-transaction limits, approval thresholds, allowed assets, and how long the session lasts. Policies are frozen at session creation — changing a policy later will not affect this session.
+  </Step>
+  <Step title="Choose your AI client">
+    Select the client type that matches the AI assistant you're configuring:
+    - **Cursor** — the Cursor code editor
+    - **Claude** — Anthropic's Claude (desktop or API)
+    - **ChatGPT** — OpenAI's ChatGPT
+    - **Gemini** — Google's Gemini
+    - **Other** — any other MCP-compatible client
+  </Step>
+  <Step title="Click Create AI session">
+    Pay3 generates a unique session key pair, registers the session, and returns your MCP auth token along with the full MCP configuration JSON.
+  </Step>
+</Steps>
+
+## Copying your MCP configuration
+
+After creation, a green confirmation panel appears with your session credentials. Copy the `PAY3_MCP_AUTH_TOKEN` and paste it into your AI client's configuration.
+
+<Warning>
+**Your MCP auth token is shown exactly once.** Pay3 does not store the token in a retrievable form after this screen. Copy it immediately and save it somewhere secure. If you lose it, you must revoke the session and create a new one.
+</Warning>
+
+The MCP configuration you need to add to your AI client looks like this:
+
+```json
+{
+  "mcpServers": {
+    "pay3": {
+      "command": "npx",
+      "args": ["-y", "@pay3/mcp-server"],
+      "env": {
+        "PAY3_MCP_AUTH_TOKEN": "<your-token-here>",
+        "API_BASE_URL": "https://api.pay3.finance"
+      }
+    }
+  }
+}
+```
+
+Replace `<your-token-here>` with the token shown in the dashboard. Paste this JSON into your client's MCP server configuration file (the exact location varies by client — consult your client's documentation).
+
+## Registering the session on-chain
+
+After copying your token, you must complete one final step: calling `add_session` on your Soroban vault contract. The dashboard shows the exact parameters you need — including the session public key, expiry timestamp, per-transaction maximum, and daily maximum — formatted for the Soroban CLI or Stellar Laboratory.
+
+<Note>
+The on-chain registration step is mandatory. Until you call `add_session` on your contract, the smart account will reject any payment requests from this session, even if the MCP token is valid.
+</Note>
+
+This two-step process — off-chain session creation followed by on-chain registration — ensures that the Soroban contract independently verifies every transaction, providing a second layer of protection beyond Pay3's off-chain policy checks.
+
+## Managing existing sessions
+
+The sessions list below the creation form shows all sessions associated with your account:
+
+| Column | Description |
+|---|---|
+| **Client type** | The AI assistant this session was created for (e.g., CURSOR, CLAUDE) |
+| **Session public key** | The on-chain key registered with your vault contract |
+| **Policy** | The spending policy governing this session |
+| **Smart account** | The vault contract this session draws from |
+| **Status** | ACTIVE, EXPIRED, or REVOKED |
+| **Expiry** | The date and time when this session automatically expires |
+
+### Revoking a session
+
+To revoke a single session, click **Revoke** next to it. The session is immediately invalidated — the AI assistant will receive an authentication error on its next payment attempt.
+
+<Note>
+Each AI assistant should have its own dedicated session. This gives you independent budget tracking per assistant, clean audit logs, and the ability to revoke one assistant's access without affecting others.
+</Note>
+
+### Session expiry
+
+Sessions expire automatically at the time set by your policy's `sessionDurationHours` field. An expired session is read-only in the list — you cannot reactivate it. Create a new session when you need continued access.

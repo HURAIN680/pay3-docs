@@ -1,0 +1,543 @@
+---
+title: "GET /api/dashboard — Dashboard Summary Data"
+sidebarTitle: "GET /dashboard"
+description: "GET /api/dashboard — returns a unified summary of wallet balances, active sessions, pending approvals, policies, and monthly usage."
+---
+
+The dashboard endpoint is your single entry point for building a complete account overview. One authenticated request returns seven data points in parallel — wallet balances, recent transactions, active AI sessions, pending approval requests, spending policies, monthly usage records, and per-session daily budget consumption. Rather than making seven separate API calls and stitching the results together on the client, you can use this endpoint to populate an entire dashboard UI in a single round trip.
+
+<Tip>
+  This endpoint is purpose-built for dashboard UIs. Because the server fetches all seven data sources concurrently with `Promise.all`, the total response time is bounded by the slowest individual source — not the sum of all seven. Use it wherever you need a full account snapshot and want to minimize network overhead.
+</Tip>
+
+## Endpoint
+
+```
+GET /api/dashboard
+```
+
+## Authentication
+
+All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
+
+```
+Authorization: Bearer <token>
+```
+
+## Response fields
+
+<ResponseField name="wallet" type="object" required>
+  Wallet identity and live Stellar asset balances for your primary wallet.
+
+  <Expandable title="wallet fields">
+    <ResponseField name="wallet" type="object" required>
+      Core wallet metadata.
+
+      <Expandable title="wallet.wallet fields">
+        <ResponseField name="id" type="string" required>
+          UUID of the wallet record.
+        </ResponseField>
+        <ResponseField name="publicAddress" type="string" required>
+          Stellar G-address (public key) for this wallet.
+        </ResponseField>
+        <ResponseField name="network" type="string" required>
+          Stellar network this wallet operates on. One of `MAINNET` or `TESTNET`.
+        </ResponseField>
+        <ResponseField name="isPrimary" type="boolean" required>
+          Whether this is the account's designated primary wallet.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="balances" type="array" required>
+      Live asset balances fetched directly from the Stellar network at request time. Each entry represents one asset held by the wallet.
+
+      <Expandable title="balances[] fields">
+        <ResponseField name="asset" type="string" required>
+          Asset code (e.g. `"USDC"`, `"XLM"`).
+        </ResponseField>
+        <ResponseField name="balance" type="string" required>
+          Current balance as a decimal string (e.g. `"250.0000000"`).
+        </ResponseField>
+        <ResponseField name="assetType" type="string" required>
+          Stellar asset type. One of `native` (XLM) or `credit_alphanum4` / `credit_alphanum12` for issued assets.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+
+    <ResponseField name="smartAccounts" type="array" required>
+      Soroban smart account contracts linked to this wallet.
+
+      <Expandable title="smartAccounts[] fields">
+        <ResponseField name="id" type="string" required>
+          UUID of the smart account record.
+        </ResponseField>
+        <ResponseField name="contractId" type="string" required>
+          On-chain Soroban contract ID (C-address).
+        </ResponseField>
+        <ResponseField name="network" type="string" required>
+          Stellar network the contract is deployed on.
+        </ResponseField>
+        <ResponseField name="createdAt" type="string" required>
+          ISO 8601 timestamp when the smart account was created.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="recentTransactions" type="array" required>
+  The 10 most recent transactions across your account, ordered newest first.
+
+  <Expandable title="recentTransactions[] fields">
+    <ResponseField name="id" type="string" required>
+      UUID of the transaction record.
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Transaction lifecycle status. One of `PENDING`, `APPROVED`, `SUBMITTED`, `CONFIRMED`, or `FAILED`.
+    </ResponseField>
+    <ResponseField name="amount" type="string" required>
+      Transfer amount as a decimal string.
+    </ResponseField>
+    <ResponseField name="asset" type="string" required>
+      Asset code transferred (e.g. `"USDC"`).
+    </ResponseField>
+    <ResponseField name="destinationAddress" type="string" required>
+      Stellar G-address of the recipient.
+    </ResponseField>
+    <ResponseField name="stellarTxHash" type="string">
+      On-chain transaction hash. Present only after the transaction has been submitted to the Stellar network.
+    </ResponseField>
+    <ResponseField name="aiSession" type="object">
+      The AI session that initiated this transaction, if applicable.
+
+      <Expandable title="aiSession fields">
+        <ResponseField name="id" type="string" required>
+          UUID of the AI session.
+        </ResponseField>
+        <ResponseField name="clientType" type="string" required>
+          AI client that created this session (e.g. `"CURSOR"`, `"CLAUDE"`).
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="contact" type="object">
+      The resolved contact for this transaction's recipient, if the address matched a saved contact.
+
+      <Expandable title="contact fields">
+        <ResponseField name="id" type="string" required>
+          UUID of the contact record.
+        </ResponseField>
+        <ResponseField name="displayName" type="string" required>
+          Human-readable name of the contact.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 timestamp when the transaction record was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="activeSessions" type="array" required>
+  All currently active AI sessions on your account — sessions with status `ACTIVE` and a future `expiresAt`.
+
+  <Expandable title="activeSessions[] fields">
+    <ResponseField name="id" type="string" required>
+      UUID of the AI session.
+    </ResponseField>
+    <ResponseField name="clientType" type="string" required>
+      AI client associated with this session. One of `CURSOR`, `CLAUDE`, `CHATGPT`, `GEMINI`, or `OTHER`.
+    </ResponseField>
+    <ResponseField name="smartAccountId" type="string" required>
+      UUID of the smart account this session is authorized to operate on.
+    </ResponseField>
+    <ResponseField name="policyId" type="string" required>
+      UUID of the spending policy governing this session's transaction limits.
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Session status — `ACTIVE` for all entries in this array.
+    </ResponseField>
+    <ResponseField name="expiresAt" type="string" required>
+      ISO 8601 timestamp when this session will automatically expire.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 timestamp when the session was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="pendingApprovals" type="array" required>
+  All approval requests currently awaiting your review — requests with status `PENDING` and a future `expiresAt`.
+
+  <Expandable title="pendingApprovals[] fields">
+    <ResponseField name="id" type="string" required>
+      UUID of the approval request.
+    </ResponseField>
+    <ResponseField name="status" type="string" required>
+      Always `PENDING` for entries returned here.
+    </ResponseField>
+    <ResponseField name="transactionId" type="string" required>
+      UUID of the transaction awaiting approval.
+    </ResponseField>
+    <ResponseField name="expiresAt" type="string" required>
+      ISO 8601 timestamp after which this approval request expires and can no longer be actioned.
+    </ResponseField>
+    <ResponseField name="transaction" type="object" required>
+      Full transaction record for the payment being requested.
+
+      <Expandable title="transaction fields">
+        <ResponseField name="id" type="string" required>
+          UUID of the transaction.
+        </ResponseField>
+        <ResponseField name="amount" type="string" required>
+          Requested transfer amount as a decimal string.
+        </ResponseField>
+        <ResponseField name="asset" type="string" required>
+          Asset code to be transferred.
+        </ResponseField>
+        <ResponseField name="destinationAddress" type="string" required>
+          Recipient's Stellar G-address.
+        </ResponseField>
+        <ResponseField name="status" type="string" required>
+          Transaction status — `PENDING` for all entries in this context.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="aiSession" type="object" required>
+      The AI session that triggered this approval request.
+
+      <Expandable title="aiSession fields">
+        <ResponseField name="id" type="string" required>
+          UUID of the AI session.
+        </ResponseField>
+        <ResponseField name="clientType" type="string" required>
+          AI client that initiated the transaction.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 timestamp when the approval request was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="policies" type="array" required>
+  All active spending policies on your account, ordered newest first.
+
+  <Expandable title="policies[] fields">
+    <ResponseField name="id" type="string" required>
+      UUID of the policy.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Human-readable name you gave this policy.
+    </ResponseField>
+    <ResponseField name="preset" type="string" required>
+      Policy preset used as the starting configuration. One of `CONSERVATIVE`, `BALANCED`, `DEFI`, or `CUSTOM`.
+    </ResponseField>
+    <ResponseField name="dailyBudget" type="string" required>
+      Maximum total spend per day across all sessions using this policy, as a decimal string (USD).
+    </ResponseField>
+    <ResponseField name="perTransactionMax" type="string" required>
+      Maximum amount for a single transaction, as a decimal string (USD).
+    </ResponseField>
+    <ResponseField name="manualApprovalThreshold" type="string" required>
+      Transactions above this amount (USD) require manual approval before submission.
+    </ResponseField>
+    <ResponseField name="sessionDurationHours" type="number" required>
+      Maximum lifetime in hours for any session created under this policy.
+    </ResponseField>
+    <ResponseField name="allowedAssets" type="array" required>
+      List of asset codes this policy permits (e.g. `["USDC", "XLM"]`).
+    </ResponseField>
+    <ResponseField name="allowedActions" type="array" required>
+      List of actions permitted under this policy. Values include `CHECK_BALANCE`, `TRANSFER`, and `VIEW_TRANSACTION_HISTORY`.
+    </ResponseField>
+    <ResponseField name="allowedRecipientIds" type="array" required>
+      List of contact UUIDs that sessions under this policy may send to. An empty array means no recipient restriction is enforced.
+    </ResponseField>
+    <ResponseField name="monthlyBudget" type="string">
+      Optional monthly spend cap in USD. `null` if no monthly limit is set.
+    </ResponseField>
+    <ResponseField name="isActive" type="boolean" required>
+      Whether this policy is currently active. Only active policies appear in this array.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string" required>
+      ISO 8601 timestamp when the policy was created.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="monthlyUsage" type="object" required>
+  Aggregated spend records for the current calendar month, broken down by AI session and asset.
+
+  <Expandable title="monthlyUsage fields">
+    <ResponseField name="period" type="object" required>
+      The billing period these records cover.
+
+      <Expandable title="period fields">
+        <ResponseField name="year" type="number" required>
+          Four-digit calendar year (e.g. `2025`).
+        </ResponseField>
+        <ResponseField name="month" type="number" required>
+          Calendar month as an integer from `1` (January) to `12` (December).
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="records" type="array" required>
+      Individual usage records, each representing spend for one session-and-asset combination.
+
+      <Expandable title="records[] fields">
+        <ResponseField name="aiSessionId" type="string" required>
+          UUID of the AI session this record belongs to.
+        </ResponseField>
+        <ResponseField name="asset" type="string" required>
+          Asset code for this usage record (e.g. `"USDC"`).
+        </ResponseField>
+        <ResponseField name="totalAmount" type="string" required>
+          Total amount transacted in this asset during the period, as a decimal string.
+        </ResponseField>
+        <ResponseField name="transactionCount" type="number" required>
+          Number of transactions contributing to `totalAmount`.
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+    <ResponseField name="totalsByAsset" type="object" required>
+      Aggregated totals rolled up across all sessions, keyed by uppercase asset code.
+
+      <Expandable title="totalsByAsset example">
+        ```json
+        {
+          "USDC": { "totalAmount": "320.50", "transactionCount": 7 },
+          "XLM":  { "totalAmount": "45.00",  "transactionCount": 2 }
+        }
+        ```
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="budgetUsage" type="object" required>
+  Real-time daily and monthly budget consumption for every currently active AI session.
+
+  <Expandable title="budgetUsage fields">
+    <ResponseField name="sessions" type="array" required>
+      One entry per active session. An empty array is returned if no sessions are currently active.
+
+      <Expandable title="sessions[] fields">
+        <ResponseField name="sessionId" type="string" required>
+          UUID of the active AI session.
+        </ResponseField>
+        <ResponseField name="clientType" type="string" required>
+          AI client type for this session (e.g. `"CURSOR"`).
+        </ResponseField>
+        <ResponseField name="smartAccountId" type="string" required>
+          UUID of the smart account this session is authorized to operate on.
+        </ResponseField>
+        <ResponseField name="policy" type="object" required>
+          Spending limits in effect for this session.
+
+          <Expandable title="policy fields">
+            <ResponseField name="dailyBudget" type="string" required>
+              Daily spend cap in USD as a decimal string.
+            </ResponseField>
+            <ResponseField name="monthlyBudget" type="string">
+              Monthly spend cap in USD, or `null` if no monthly limit is set.
+            </ResponseField>
+            <ResponseField name="allowedAssets" type="array" required>
+              Asset codes this session is permitted to transfer.
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+        <ResponseField name="dailySpent" type="array" required>
+          Amount spent today (UTC day) broken down by asset.
+
+          <Expandable title="dailySpent[] fields">
+            <ResponseField name="asset" type="string" required>
+              Asset code (e.g. `"USDC"`).
+            </ResponseField>
+            <ResponseField name="spentAmount" type="string" required>
+              Amount spent today in this asset, as a decimal string.
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+        <ResponseField name="monthlySpent" type="array" required>
+          Amount spent in the current calendar month broken down by asset.
+
+          <Expandable title="monthlySpent[] fields">
+            <ResponseField name="asset" type="string" required>
+              Asset code (e.g. `"USDC"`).
+            </ResponseField>
+            <ResponseField name="spentAmount" type="string" required>
+              Amount spent this month in this asset, as a decimal string.
+            </ResponseField>
+          </Expandable>
+        </ResponseField>
+      </Expandable>
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+## Example request
+
+```bash
+curl https://api.pay3.dev/api/dashboard \
+  -H "Authorization: Bearer <token>"
+```
+
+## Example response
+
+```json
+{
+  "wallet": {
+    "wallet": {
+      "id": "w1a2b3c4-0001-4abc-8def-000000000001",
+      "publicAddress": "GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOKY3B2WSQHG4W37",
+      "network": "MAINNET",
+      "isPrimary": true
+    },
+    "balances": [
+      {
+        "asset": "USDC",
+        "balance": "1250.0000000",
+        "assetType": "credit_alphanum4"
+      },
+      {
+        "asset": "XLM",
+        "balance": "98.4321000",
+        "assetType": "native"
+      }
+    ],
+    "smartAccounts": [
+      {
+        "id": "sa1a2b3c4-0001-4abc-8def-000000000010",
+        "contractId": "CCJZ5DGASBWQXR5MPFCJXMBI5HONGSDJFQNZOQQVLRBTKMJZFJBTMKYT",
+        "network": "MAINNET",
+        "createdAt": "2025-05-01T09:00:00.000Z"
+      }
+    ]
+  },
+  "recentTransactions": [
+    {
+      "id": "tx1a2b3c4-0001-4abc-8def-000000000020",
+      "status": "CONFIRMED",
+      "amount": "50.00",
+      "asset": "USDC",
+      "destinationAddress": "GBVFEQKQ5VGHIH4CVXOL5TXIVMS6OJQMQHM5LLNTV3AAJHID5OFWKM4",
+      "stellarTxHash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "aiSession": {
+        "id": "sess1a2b3c4-0001-4abc-8def-000000000030",
+        "clientType": "CURSOR"
+      },
+      "contact": {
+        "id": "c1a2b3d4-0001-4abc-8def-000000000001",
+        "displayName": "Alice Johnson"
+      },
+      "createdAt": "2025-07-08T14:30:00.000Z"
+    }
+  ],
+  "activeSessions": [
+    {
+      "id": "sess1a2b3c4-0001-4abc-8def-000000000030",
+      "clientType": "CURSOR",
+      "smartAccountId": "sa1a2b3c4-0001-4abc-8def-000000000010",
+      "policyId": "pol1a2b3c4-0001-4abc-8def-000000000040",
+      "status": "ACTIVE",
+      "expiresAt": "2025-07-15T14:30:00.000Z",
+      "createdAt": "2025-07-08T14:30:00.000Z"
+    }
+  ],
+  "pendingApprovals": [
+    {
+      "id": "apr1a2b3c4-0001-4abc-8def-000000000050",
+      "status": "PENDING",
+      "transactionId": "tx1a2b3c4-0002-4abc-8def-000000000021",
+      "expiresAt": "2025-07-09T14:30:00.000Z",
+      "transaction": {
+        "id": "tx1a2b3c4-0002-4abc-8def-000000000021",
+        "amount": "200.00",
+        "asset": "USDC",
+        "destinationAddress": "GBVFEQKQ5VGHIH4CVXOL5TXIVMS6OJQMQHM5LLNTV3AAJHID5OFWKM4",
+        "status": "PENDING"
+      },
+      "aiSession": {
+        "id": "sess1a2b3c4-0001-4abc-8def-000000000030",
+        "clientType": "CURSOR"
+      },
+      "createdAt": "2025-07-08T16:00:00.000Z"
+    }
+  ],
+  "policies": [
+    {
+      "id": "pol1a2b3c4-0001-4abc-8def-000000000040",
+      "name": "Daily Ops",
+      "preset": "BALANCED",
+      "dailyBudget": "500",
+      "perTransactionMax": "100",
+      "manualApprovalThreshold": "250",
+      "sessionDurationHours": 168,
+      "allowedAssets": ["USDC", "XLM"],
+      "allowedActions": [
+        "CHECK_BALANCE",
+        "TRANSFER",
+        "VIEW_TRANSACTION_HISTORY"
+      ],
+      "allowedRecipientIds": [
+        "c1a2b3d4-0001-4abc-8def-000000000001"
+      ],
+      "monthlyBudget": null,
+      "isActive": true,
+      "createdAt": "2025-05-10T10:00:00.000Z"
+    }
+  ],
+  "monthlyUsage": {
+    "period": {
+      "year": 2025,
+      "month": 7
+    },
+    "records": [
+      {
+        "aiSessionId": "sess1a2b3c4-0001-4abc-8def-000000000030",
+        "asset": "USDC",
+        "totalAmount": "320.50",
+        "transactionCount": 7
+      }
+    ],
+    "totalsByAsset": {
+      "USDC": {
+        "totalAmount": "320.50",
+        "transactionCount": 7
+      }
+    }
+  },
+  "budgetUsage": {
+    "sessions": [
+      {
+        "sessionId": "sess1a2b3c4-0001-4abc-8def-000000000030",
+        "clientType": "CURSOR",
+        "smartAccountId": "sa1a2b3c4-0001-4abc-8def-000000000010",
+        "policy": {
+          "dailyBudget": "500",
+          "monthlyBudget": null,
+          "allowedAssets": ["USDC", "XLM"]
+        },
+        "dailySpent": [
+          {
+            "asset": "USDC",
+            "spentAmount": "50.00"
+          }
+        ],
+        "monthlySpent": [
+          {
+            "asset": "USDC",
+            "spentAmount": "320.50"
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+<Note>
+  All seven data sources — wallet, transactions, sessions, approvals, policies, monthly usage, and budget usage — are fetched concurrently on the server via `Promise.all`. The endpoint's latency is determined by whichever source takes longest, not their combined total.
+</Note>

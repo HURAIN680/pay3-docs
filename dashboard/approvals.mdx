@@ -1,0 +1,62 @@
+---
+title: "Review and Approve Pending AI Transactions"
+sidebarTitle: "Approvals"
+description: "Review AI-requested transactions that exceeded your approval threshold and approve or let them expire from the Pay3 Dashboard."
+---
+
+When your AI assistant requests a payment that exceeds the `manualApprovalThreshold` set in its policy, Pay3 does not execute the transaction immediately. Instead, it places the transaction in the **Pending Approvals** queue and waits for you to review it. You decide whether to approve the payment — if you do, it executes on Stellar right away. If you take no action, the request expires on its own.
+
+## How transactions enter the approvals queue
+
+Every time an AI session requests a transfer, Pay3 checks the requested amount against the `manualApprovalThreshold` in the session's policy:
+
+- **At or below the threshold** — the transaction is executed automatically without your intervention.
+- **Above the threshold** — the transaction is held in Pending Approvals and the AI waits for your decision.
+
+For example, if your policy has a `manualApprovalThreshold` of $15, a $12 transfer executes automatically, but a $20 transfer lands in the approvals queue.
+
+## Reading the approvals list
+
+Each pending approval card shows:
+
+| Field | Description |
+|---|---|
+| **Amount & Asset** | The USD-equivalent amount and asset code (e.g., `20.00 USDC`) |
+| **Recipient** | The address or contact alias the AI specified as the recipient |
+| **AI Session** | Which AI client (e.g., CURSOR, CLAUDE) requested the transfer |
+| **Transaction ID** | The internal Pay3 transaction identifier |
+| **Expiry** | The exact date and time when this request will expire if not approved |
+
+## Approving a transaction
+
+<Steps>
+  <Step title="Open the Approvals page">
+    Click **Approvals** in the dashboard navigation bar. Any pending requests load automatically.
+  </Step>
+  <Step title="Review the transaction details">
+    Check the amount, asset, recipient, and which AI session made the request. Verify that the payment matches something you'd expect your AI to be doing.
+  </Step>
+  <Step title="Click Approve">
+    Click the **Approve** button on the transaction card. Pay3 immediately signs and submits the transaction to the Stellar network. The card disappears from the queue once the submission is confirmed.
+  </Step>
+</Steps>
+
+## The 2-minute expiry window
+
+<Warning>
+**Pending approvals expire after 2 minutes.** If you do not click Approve within the 2-minute window, the request is automatically rejected. The AI receives a rejection response and the transaction is marked as EXPIRED in your [Transactions](/dashboard/transactions) history. You cannot approve an expired request — the AI must retry.
+</Warning>
+
+The 2-minute window is intentional. It keeps your approvals queue clean, ensures you're actively monitoring high-value requests rather than rubber-stamping them later, and prevents transactions from sitting in an ambiguous pending state for extended periods.
+
+<Note>
+When a request expires, the AI assistant is notified of the rejection and will typically inform you (the user) that the transaction did not go through. You can ask the AI to retry the payment, which will generate a fresh approval request with a new 2-minute window.
+</Note>
+
+## Staying on top of approvals
+
+<Tip>
+Keep a browser tab open to the Approvals page if you're running an AI session with a low `manualApprovalThreshold`. The page does not currently auto-refresh, so reload it manually or check back frequently when you expect the AI to be making payments.
+</Tip>
+
+If you frequently find yourself approving the same types of routine transactions, consider raising your policy's `manualApprovalThreshold` to let those transactions execute automatically. Go to **Policies**, create a new policy with a higher threshold, then create a new session for your AI assistant using that policy.

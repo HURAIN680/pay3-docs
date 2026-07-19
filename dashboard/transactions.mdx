@@ -1,0 +1,74 @@
+---
+title: "View Your AI Agent's Full Transaction History"
+sidebarTitle: "Transactions"
+description: "Browse all AI-initiated transactions in Pay3 — amounts, assets, statuses, Stellar transaction hashes, and execution details."
+---
+
+The Transactions page is a complete, read-only log of every payment your AI agents have requested through Pay3. Whether a transaction succeeded on-chain, failed a policy check, or expired in the approvals queue, it appears here. Use this page to audit AI spending, investigate failed payments, and verify on-chain settlement.
+
+## Reading the transactions list
+
+Each entry in the list shows:
+
+| Field | Description |
+|---|---|
+| **Action** | The type of operation the AI requested (e.g., `TRANSFER`) |
+| **Asset** | The asset involved in the transaction (e.g., `USDC`, `XLM`) |
+| **Amount** | The value requested, shown alongside the asset code |
+| **Recipient** | The Stellar address or contact name the AI specified |
+| **Status** | Current lifecycle state of the transaction (see below) |
+| **Stellar transaction hash** | The on-chain hash, once the transaction has been submitted |
+| **Timestamp** | When Pay3 received the transaction request |
+
+## Transaction statuses
+
+Every transaction moves through a lifecycle. The status field tells you exactly where in that lifecycle each transaction sits:
+
+| Status | Meaning |
+|---|---|
+| **PENDING** | The transaction exceeded your approval threshold and is waiting in the approvals queue |
+| **SIGNING** | Pay3 is signing the transaction using the session key |
+| **SUBMITTING** | The signed transaction has been submitted to the Stellar network and is awaiting confirmation |
+| **SUCCESS** | The transaction was confirmed on-chain — funds have moved |
+| **FAILED** | The transaction was rejected by the spending policy, the Soroban contract, or the Stellar network |
+| **EXPIRED** | The 2-minute approval window passed without your action |
+
+<Note>
+Transactions are immutable on the Stellar blockchain. Once a transaction reaches **SUCCESS** status, Pay3 cannot reverse or refund it. If an AI sends funds to the wrong address, you must contact the recipient directly. Always verify recipient addresses in your [Contacts](/dashboard/contacts) list.
+</Note>
+
+## Viewing a transaction on Stellar Explorer
+
+When a transaction has a Stellar transaction hash (visible once the status reaches SUBMITTING or SUCCESS), click the hash to open it in Stellar Explorer. The explorer shows the full on-chain details: the source and destination accounts, the asset and amount transferred, the ledger it was included in, and the fee paid.
+
+<Info>
+Pay3 supports both testnet and mainnet. The Stellar Explorer link automatically points to the correct network based on which network your smart account contract is deployed on.
+</Info>
+
+## Budget tracking and daily resets
+
+Pay3 tracks spending per session against the `dailyBudget` defined in the session's policy. The budget counter resets every day at **midnight UTC**. You can see current budget consumption per session in the Overview page's stat cards.
+
+<Accordion title="What counts toward the daily budget?">
+  Only transactions with **SUCCESS** status count toward the daily budget. FAILED and EXPIRED transactions do not consume budget. PENDING transactions reserve budget until they are approved (and succeed) or expire.
+</Accordion>
+
+<Accordion title="What happens when the daily budget is exhausted?">
+  Once an AI session has reached its daily budget ceiling, Pay3 rejects any further transaction requests from that session for the remainder of the day, returning an error to the AI assistant. The budget resets at midnight UTC and the session can resume spending.
+</Accordion>
+
+<Accordion title="How do I find transactions for a specific session?">
+  The Transactions page currently shows all transactions across all sessions. To filter by session, check the **Action** and timestamp columns — each session's activity is logged in chronological order. Per-session filtering is on the Pay3 roadmap.
+</Accordion>
+
+## FAILED transactions — common causes
+
+If you see transactions with FAILED status, the table below covers the most common reasons:
+
+| Cause | What to check |
+|---|---|
+| Policy rejection | The requested amount exceeded `perTransactionMax` or used an asset not in `allowedAssets` |
+| Daily budget exceeded | The session's `dailyBudget` was fully consumed before the request |
+| Contract rejection | The on-chain session registration was not completed or the session key is invalid |
+| Network error | A transient Stellar network issue — the AI can safely retry |
+| Insufficient vault balance | The smart account's USDC balance was too low — [deposit more funds](/dashboard/smart-accounts#depositing-usdc-into-your-vault) |

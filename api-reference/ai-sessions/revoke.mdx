@@ -1,0 +1,103 @@
+---
+title: "Revoke AI Sessions — Individual and Bulk Revocation"
+sidebarTitle: "Revoke Sessions"
+description: "DELETE /api/ai-sessions/:id revokes a single session. POST /api/ai-sessions/revoke-all immediately revokes all active sessions."
+---
+
+Pay3 provides two revocation endpoints so you can cut off an AI assistant's spending access immediately — whether you need to retire a single session or perform an emergency shutdown of all active sessions at once. Revoking a session invalidates its MCP auth token and prevents any further transactions from being submitted under it. Any transactions that are already in the `SIGNING` or `SUBMITTING` state at the moment of revocation may still complete.
+
+---
+
+## Revoke a single session
+
+Remove access for one specific AI session by its ID. Use this when rotating session credentials, decommissioning a particular AI client, or responding to a suspected compromise of a single token.
+
+### Endpoint
+
+```
+DELETE /api/ai-sessions/:id
+```
+
+### Authentication
+
+```
+Authorization: Bearer <token>
+```
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the AI session to revoke.
+</ParamField>
+
+### Response
+
+```json
+{ "success": true }
+```
+
+### Example request
+
+```bash
+curl -X DELETE https://api.pay3.dev/api/ai-sessions/e3b0c442-98fc-1c14-9afb-f4c8996fb924 \
+  -H "Authorization: Bearer <token>"
+```
+
+### Example response
+
+```json
+{
+  "success": true
+}
+```
+
+---
+
+## Revoke all sessions
+
+Immediately revoke every active AI session on your account. This is an emergency control designed for situations where you suspect a credentials leak, want to perform a full security reset, or are shutting down all AI-driven activity.
+
+### Endpoint
+
+```
+POST /api/ai-sessions/revoke-all
+```
+
+### Authentication
+
+```
+Authorization: Bearer <token>
+```
+
+### Request body
+
+No request body is required.
+
+### Response
+
+```json
+{ "success": true }
+```
+
+### Example request
+
+```bash
+curl -X POST https://api.pay3.dev/api/ai-sessions/revoke-all \
+  -H "Authorization: Bearer <token>"
+```
+
+### Example response
+
+```json
+{
+  "success": true
+}
+```
+
+<Warning>
+  **Revoke-all is irreversible.** All active AI sessions will be disconnected immediately and their MCP auth tokens permanently invalidated. Every AI assistant currently using Pay3 — Cursor, Claude, ChatGPT, or any other client — will lose spending access at once. You will need to create new sessions and re-configure each client to restore access.
+</Warning>
+
+<Note>
+  Revoked sessions remain visible in [GET /api/ai-sessions](/api-reference/ai-sessions/list) with a status of `REVOKED`, so your audit history is preserved.
+</Note>

@@ -1,0 +1,77 @@
+---
+title: "Pay3 Dashboard: Monitor Your AI Agent's Finances"
+sidebarTitle: "Overview"
+description: "Walk through the Pay3 Dashboard overview page — wallet balances, active sessions, pending approvals, and monthly usage at a glance."
+---
+
+The Pay3 Dashboard is your command center for everything your AI agents spend. From here you can see your live wallet balances, track how many AI sessions are running, catch pending approvals before they expire, and review month-to-date spending — all without leaving one screen. Use the navigation tabs at the top to drill into any section.
+
+## Dashboard layout
+
+When you open the Dashboard, your connected wallet address appears at the top of the page beneath the Overview heading. Every piece of data on the page is tied to that address.
+
+### Stat cards
+
+Four summary cards load at the top of the Overview:
+
+<CardGroup cols={4}>
+  <Card title="Balances" icon="wallet">
+    The number of distinct assets held in your connected wallet on the Stellar network.
+  </Card>
+  <Card title="Smart Accounts" icon="file-contract">
+    How many Soroban vault contracts you have linked to Pay3.
+  </Card>
+  <Card title="Active Sessions" icon="bolt">
+    AI sessions that are currently live and able to request payments on your behalf.
+  </Card>
+  <Card title="Pending Approvals" icon="clock">
+    Transactions your AI requested that are waiting for your manual approval before executing.
+  </Card>
+</CardGroup>
+
+### Wallet balances
+
+Below the stat cards, the **Wallet balances** section lists every asset in your Stellar wallet alongside its current balance, fetched in real time from Horizon. If a balance reads zero or an asset is missing, verify that your wallet holds a trustline for that asset on Stellar.
+
+### Monthly usage
+
+The **Monthly usage** table shows aggregated spending broken down by asset for the current calendar month. Each row displays the asset name, the total amount spent, and the number of transactions that contributed to it. The table resets at the start of each new month. If no AI transactions have been executed yet, the section displays *No spending this month*.
+
+## Navigating between sections
+
+The sticky navigation bar at the top of every Dashboard page contains six tabs:
+
+| Tab | What you'll find there |
+|---|---|
+| **Overview** | Wallet snapshot, stat cards, monthly usage |
+| **Policies** | Create and manage AI spending rules |
+| **Sessions** | Create, view, and revoke AI sessions |
+| **Approvals** | Review and approve pending AI transactions |
+| **Contacts** | Save trusted Stellar addresses with friendly names |
+| **Transactions** | Full read-only history of all AI payments |
+
+Click any tab to navigate directly to that section. The active tab is highlighted in white.
+
+## Emergency Revoke All
+
+<Warning>
+**Emergency Revoke All is irreversible for active sessions.** Clicking this button immediately revokes every active AI session across all assistants and all smart accounts. Any in-flight transaction that has not yet been submitted to Stellar will be cancelled. Use this button only if you suspect unauthorized activity or your MCP auth token has been compromised. You will need to create new sessions afterward.
+</Warning>
+
+The **Emergency revoke all** button sits in the top-right corner of the Overview page. Use it as a kill switch:
+
+<Steps>
+  <Step title="Click Emergency revoke all">
+    A confirmation dialog appears asking you to confirm the action.
+  </Step>
+  <Step title="Confirm the revocation">
+    Click **OK** in the confirmation dialog. Pay3 immediately calls the revoke-all endpoint and invalidates every active session token.
+  </Step>
+  <Step title="Verify the result">
+    The Active sessions card refreshes to **0**. Create new sessions from the Sessions tab once you have secured your account.
+  </Step>
+</Steps>
+
+<Note>
+Emergency Revoke All does not affect your smart account contracts or wallet balances — it only invalidates the session keys that AI assistants use to sign transactions. Your funds remain safe in your Soroban vault.
+</Note>

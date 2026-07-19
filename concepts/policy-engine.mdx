@@ -1,0 +1,161 @@
+---
+title: "Policy Engine: Rules That Govern Every AI Transaction"
+sidebarTitle: "Policy Engine"
+description: "Pay3's policy engine evaluates every AI-initiated transfer against your spending rules in order, blocking violations before any funds move."
+---
+
+Every time an AI assistant requests a financial action through Pay3, the policy engine runs first. It evaluates your spending rules in a fixed sequence — checking allowed actions, permitted assets, approved recipients, per-transaction caps, and daily budgets — before a single byte of transaction data is constructed. If any check fails, the request is rejected immediately and nothing moves. If all checks pass, the engine decides whether the transaction can run automatically or needs your manual approval.
+
+## How Policy Evaluation Works
+
+The policy engine evaluates rules in a strict, ordered sequence. A request fails the moment it trips any rule — subsequent checks are not run. Here is the full order:
+
+<Steps>
+  <Step title="Action check">
+    Is `TRANSFER` included in your session's `allowedActions` list? If not, the request is rejected with `ACTION_NOT_ALLOWED`. This is the first gate — if the action type itself is blocked, nothing else matters.
+  </Step>
+  <Step title="Asset check">
+    Is the requested asset (e.g., `USDC`, `XLM`) in your `allowedAssets` list? Asset matching is case-insensitive. If the asset is not on the list, the request fails with `ASSET_NOT_ALLOWED`.
+  </Step>
+  <Step title="Recipient check">
+    If your policy defines an `allowedRecipientIds` list, the resolved recipient must appear in it. If the list is empty, any resolved recipient is permitted. A mismatch returns `RECIPIENT_NOT_ALLOWED`.
+  </Step>
+  <Step title="Per-transaction limit">
+    Is the requested amount greater than `perTransactionMax`? If so, the request fails with `PER_TRANSACTION_LIMIT_EXCEEDED`. This check happens before budget checks — a single oversized transfer is rejected even if your daily budget has plenty of headroom.
+  </Step>
+  <Step title="Daily budget">
+    Would this transfer push `dailySpent + amount` past your `dailyBudget`? If yes, the request fails with `DAILY_BUDGET_EXCEEDED`. The engine uses the cumulative spend recorded for the current 24-hour window.
+  </Step>
+  <Step title="Monthly budget (optional)">
+    If you have configured a `monthlyBudget`, the engine checks whether `monthlySpent + amount` would exceed it. Failure returns `MONTHLY_BUDGET_EXCEEDED`. If no monthly budget is set, this check is skipped.
+  </Step>
+  <Step title="Approval decision">
+    All hard rules passed. Now the engine compares the amount against your `manualApprovalThreshold`. If `amount > manualApprovalThreshold`, the transaction is marked `PENDING_APPROVAL` and you receive a prompt in the dashboard. Otherwise it is marked `AUTO_EXECUTE` and proceeds immediately.
+  </Step>
+</Steps>
+
+## The Three Execution Outcomes
+
+Every request exits the policy engine with exactly one of three decisions:
+
+| Decision | Meaning | What Happens Next |
+|---|---|---|
+| `AUTO_EXECUTE` | All rules passed, amount is within the auto threshold | Transaction is built, signed, and submitted to Stellar automatically |
+| `PENDING_APPROVAL` | All hard rules passed, but amount exceeds your approval threshold | You receive a dashboard notification; you have 2 minutes to approve or it expires |
+| `REJECTED` | A hard policy rule was violated | Request is stopped; the AI receives an error message explaining which rule failed |
+
+<Note>
+  Pending approvals expire after exactly 2 minutes. If you don't act in time, the transaction status becomes `EXPIRED` — not `FAILED`. No funds move and no transaction is submitted to Stellar. The AI will ask you to resubmit the request.
+</Note>
+
+## Policy Is Frozen at Session Creation
+
+Your policy configuration is captured as an immutable **snapshot** at the moment you create an AI session. If you update your policy settings in the dashboard after a session is already active, those changes apply to new sessions only. The running session continues to use the policy snapshot it was created with.
+
+This is intentional. It means:
+
+- Active AI sessions behave predictably — their rules don't shift mid-session
+- You can update global policy defaults without accidentally altering a session you've already reviewed and authorized
+- The policy snapshot stored with a session is your audit record of what rules were in effect for every transaction that session executed
+
+<Info>
+  To apply updated policy rules to an existing AI client, revoke its current session and create a new one. The new session will pick up your latest policy configuration.
+</Info>
+
+## Policy Error Reference
+
+<Accordion title="ACTION_NOT_ALLOWED">
+  **Trigger:** The requested action (e.g., `TRANSFER`) is not included in the session's `allowedActions` list.
+
+  **Example:** You created a read-only session with only `CHECK_BALANCE` and `VIEW_TRANSACTION_HISTORY` allowed, but the AI attempted to call `transfer()`.
+
+  **Resolution:** Create a new session with `TRANSFER` included in allowed actions, or use an AI session that has payment permissions.
+</Accordion>
+
+<Accordion title="ASSET_NOT_ALLOWED">
+  **Trigger:** The asset specified in the transfer request (e.g., `XLM`) is not in the session's `allowedAssets` list.
+
+  **Example:** Your session only permits `USDC` transfers, but the AI tried to send `XLM`.
+
+  **Resolution:** Add the asset to your session's allowed assets list, or create a new session that includes it.
+</Accordion>
+
+<Accordion title="RECIPIENT_NOT_ALLOWED">
+  **Trigger:** Your policy has a non-empty `allowedRecipientIds` list, and the resolved recipient is not on it.
+
+  **Example:** You restricted an AI session to only pay verified vendors in your contacts list, but the AI tried to send funds to an address not in that list.
+
+  **Resolution:** Add the recipient to your Pay3 contacts and include their contact ID in the session's allowed recipients, or remove the recipient restriction if you want open payments.
+</Accordion>
+
+<Accordion title="PER_TRANSACTION_LIMIT_EXCEEDED">
+  **Trigger:** The requested transfer amount is greater than `perTransactionMax` for the session.
+
+  **Example:** Your session has a $20 per-transaction cap, and the AI tried to send $50 in a single transfer.
+
+  **Resolution:** The AI cannot split the transaction automatically. You either approve the amount manually (if it's below your `perTransactionMax` after reconfiguring), or create a new session with a higher single-transaction limit.
+</Accordion>
+
+<Accordion title="DAILY_BUDGET_EXCEEDED">
+  **Trigger:** The cumulative spend for the current 24-hour window plus the new amount would exceed `dailyBudget`.
+
+  **Example:** Your daily budget is $100 USDC, you've already spent $90 today, and the AI tried to send $25 more.
+
+  **Resolution:** Wait for the daily window to reset, or create a new session with a higher daily budget if your use case requires it.
+</Accordion>
+
+<Accordion title="MONTHLY_BUDGET_EXCEEDED">
+  **Trigger:** The cumulative spend for the current calendar month plus the new amount would exceed `monthlyBudget`. Only relevant if you have configured a monthly budget.
+
+  **Example:** Your monthly cap is $500 USDC, you've spent $480 this month, and the AI tried to send $30.
+
+  **Resolution:** Wait for the monthly window to reset, or increase your monthly budget limit if you need more capacity.
+</Accordion>
+
+## Policy Presets
+
+When you create a session, you can choose a preset that configures all policy parameters at once. You can always switch to **Custom** for full control.
+
+| Preset | Daily Budget | Per-Tx Max | Approval Threshold | Session Duration |
+|---|---|---|---|---|
+| **CONSERVATIVE** | 100 USDC | 20 USDC | 15 USDC | 24 hours |
+| **BALANCED** | 500 USDC | 100 USDC | 250 USDC | 7 days |
+| **DEFI** | 1,000 USDC | 250 USDC | 500 USDC | 7 days |
+| **CUSTOM** | You set it | You set it | You set it | You set it |
+
+<Tip>
+  The **approval threshold** is the most important number to get right for your workflow. Set it too low and you'll be approving routine transactions constantly. Set it too high and large transfers execute without your review. Start with **CONSERVATIVE** and raise the threshold as you get comfortable with how your AI assistant behaves.
+</Tip>
+
+## Policy and On-Chain Enforcement Together
+
+The policy engine is Pay3's off-chain layer. It handles the full range of intelligent, flexible checks — recipient lists, monthly budgets, approval logic — that would be expensive or impractical to encode in a smart contract.
+
+The Soroban smart account handles the critical on-chain layer: session expiry, per-transaction caps, and daily caps written directly into the contract at session creation time.
+
+```
+AI Request
+     ↓
+Off-Chain Policy Engine
+  • Action allowed?
+  • Asset allowed?
+  • Recipient allowed?
+  • Per-tx limit?
+  • Daily budget?
+  • Monthly budget?
+  • Auto or approval?
+     ↓
+On-Chain Soroban Vault
+  • Session expired?
+  • Session revoked?
+  • Per-tx max (hard)?
+  • Daily max (hard)?
+     ↓
+Stellar Network
+```
+
+Both layers must pass for a transaction to execute. The on-chain layer acts as a final guarantee that cannot be overridden by any off-chain component.
+
+<Warning>
+  Changing your policy settings in the dashboard does not update the on-chain limits already registered for active sessions. On-chain limits are set at session creation and remain fixed until the session is revoked and a new one is created.
+</Warning>

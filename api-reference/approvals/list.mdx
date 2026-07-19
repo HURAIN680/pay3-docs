@@ -1,0 +1,95 @@
+---
+title: "GET /api/approvals/pending — List Pending Approvals"
+sidebarTitle: "GET /approvals"
+description: "GET /api/approvals/pending — returns all transactions awaiting your manual approval, including amount, recipient, and 2-minute expiry time."
+---
+
+Retrieve every transaction currently waiting for your manual approval. When an AI session attempts a transfer that exceeds the `manualApprovalThreshold` set in the session's spending policy, Pay3 holds the transaction and creates an approval request instead of executing it immediately. You must review and approve (or simply let it expire) within 2 minutes. This endpoint gives you the full list of open approval requests so you can process them promptly.
+
+## Endpoint
+
+```
+GET /api/approvals/pending
+```
+
+## Authentication
+
+All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
+
+```
+Authorization: Bearer <token>
+```
+
+<Warning>
+  Each approval request expires **2 minutes** after it is created. If you do not approve the transaction before `expiresAt`, the request is automatically cancelled and the underlying transaction moves to `EXPIRED` status. The AI session will need to retry the operation if the action is still desired.
+</Warning>
+
+## Response
+
+Returns an array of open approval request objects, ordered by `requestedAt` ascending (oldest — and therefore closest to expiring — first).
+
+### Response fields
+
+<ResponseField name="transactionId" type="string" required>
+  UUID of the transaction awaiting approval. Pass this to [POST /api/approvals/:txId/approve](/api-reference/approvals/approve) to execute it.
+</ResponseField>
+
+<ResponseField name="aiSessionId" type="string" required>
+  UUID of the AI session that submitted the transaction request.
+</ResponseField>
+
+<ResponseField name="amount" type="string" required>
+  The transfer amount as a decimal string, e.g. `"75.0000000"`.
+</ResponseField>
+
+<ResponseField name="asset" type="string" required>
+  Ticker of the asset being sent, e.g. `"USDC"` or `"XLM"`.
+</ResponseField>
+
+<ResponseField name="recipient" type="string" required>
+  Destination Stellar address (G-address) that will receive the funds if you approve.
+</ResponseField>
+
+<ResponseField name="requestedAt" type="string" required>
+  ISO 8601 timestamp when the approval request was created (i.e. when the AI submitted the transaction).
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string" required>
+  ISO 8601 timestamp 2 minutes after `requestedAt`. The approval request is cancelled automatically if you have not approved it by this time.
+</ResponseField>
+
+## Example request
+
+```bash
+curl https://api.pay3.dev/api/approvals/pending \
+  -H "Authorization: Bearer <token>"
+```
+
+## Example response
+
+```json
+[
+  {
+    "transactionId": "c3b2a1f0-9876-5432-fedc-ba0987654321",
+    "aiSessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "amount": "75.0000000",
+    "asset": "USDC",
+    "recipient": "GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "requestedAt": "2025-07-08T14:30:00.000Z",
+    "expiresAt": "2025-07-08T14:32:00.000Z"
+  },
+  {
+    "transactionId": "a0b1c2d3-1111-2222-3333-444455556666",
+    "aiSessionId": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
+    "amount": "60.0000000",
+    "asset": "XLM",
+    "recipient": "GCYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
+    "requestedAt": "2025-07-08T14:30:45.000Z",
+    "expiresAt": "2025-07-08T14:32:45.000Z"
+  }
+]
+```
+
+<Note>
+  An empty array `[]` means there are no transactions currently awaiting your approval. Consider polling this endpoint or setting up a webhook to be notified when new approval requests arrive.
+</Note>

@@ -1,0 +1,100 @@
+---
+title: "Link Your Soroban Smart Account to Pay3"
+sidebarTitle: "Smart Accounts"
+description: "Learn how to link a Soroban smart account contract to Pay3 so AI sessions can spend from your on-chain USDC vault."
+---
+
+A Smart Account is a Soroban contract deployed on the Stellar network that acts as a dedicated USDC vault for your AI agents. Instead of giving an AI assistant direct access to your personal wallet, you deposit a controlled amount of USDC into the smart account contract. AI sessions then draw from that vault, so your primary wallet is never exposed. The contract independently enforces on-chain spending limits — meaning even if Pay3's off-chain policy were bypassed, the contract itself would reject any transaction that violates its rules.
+
+## What a smart account contract ID looks like
+
+Every Soroban contract is identified by a 56-character contract ID starting with the letter **C**:
+
+```
+CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```
+
+You receive this contract ID when you deploy the Pay3 vault contract to Stellar. Keep it somewhere safe — you'll need it to link the account and to register AI sessions on-chain.
+
+## Soroban contract functions
+
+The Pay3 vault contract exposes four core functions you'll interact with directly:
+
+```rust
+fn initialize(env: Env, owner: Address, usdc_token: Address)  // one-time setup
+fn deposit(env: Env, from: Address, amount: i128)             // add USDC to vault
+fn withdraw(env: Env, to: Address, amount: i128)              // owner withdraws
+fn get_balance(env: Env) -> i128                              // check vault balance
+```
+
+<Accordion title="initialize — one-time setup">
+  Call `initialize` once immediately after deploying your contract. Pass your wallet address as `owner` and the USDC token contract address for the network you're using (testnet or mainnet). This function can only be called once and locks the owner address permanently.
+</Accordion>
+
+<Accordion title="deposit — fund your vault">
+  Call `deposit` from your owner wallet to move USDC from your wallet into the vault. The `amount` parameter is in stroops (1 USDC = 10,000,000 stroops). The vault balance increases immediately on confirmation.
+</Accordion>
+
+<Accordion title="withdraw — recover funds">
+  Call `withdraw` to pull USDC back out of the vault into any Stellar address you control. Only the `owner` address set during initialization can call this function.
+</Accordion>
+
+<Accordion title="get_balance — check vault balance">
+  Call `get_balance` at any time to read the current USDC balance held in the vault. This is a read-only query and costs no fees.
+</Accordion>
+
+## How to link a smart account
+
+<Steps>
+  <Step title="Open the Sessions page">
+    Navigate to **Sessions** in the dashboard navigation bar. The **Link smart account** form appears at the top of the page.
+  </Step>
+  <Step title="Paste your contract ID">
+    Enter your full Soroban contract ID (starting with **C**) in the Contract ID field.
+  </Step>
+  <Step title="Click Link contract">
+    Click the **Link contract** button. Pay3 validates the contract ID and registers it against your account. The linked contract ID appears in the list below the form (truncated as `CXXXXXXX…XXXXXX` for readability).
+  </Step>
+  <Step title="Create an AI session">
+    Once linked, you can select this smart account when creating a new AI session. The session will draw spending allowance from this vault.
+  </Step>
+</Steps>
+
+## Depositing USDC into your vault
+
+After linking, you need to fund the vault before any AI session can execute payments. Use the Stellar Laboratory, your preferred Stellar wallet app, or the Soroban CLI to call the `deposit` function:
+
+```bash
+soroban contract invoke \
+  --id <YOUR_CONTRACT_ID> \
+  --source <YOUR_WALLET_SECRET_KEY> \
+  --network testnet \
+  -- deposit \
+  --from <YOUR_WALLET_ADDRESS> \
+  --amount 1000000000
+```
+
+The example above deposits 100 USDC (100 × 10,000,000 stroops = 1,000,000,000).
+
+<Note>
+You must hold a USDC trustline on your Stellar wallet before depositing. Without it, the transaction will fail with an `op_no_trust` error.
+</Note>
+
+## Managing multiple smart accounts
+
+You can link as many smart accounts as you need — for example, one per project, one per AI assistant, or one per team member. Each smart account has its own balance and its own set of associated sessions, giving you clean budget separation.
+
+<Tip>
+Create one smart account per major use case. For example, link a "Coding Assistant" vault for your Cursor sessions and a separate "Research Assistant" vault for Claude sessions. This way your monthly usage table shows spending broken down by purpose.
+</Tip>
+
+## On-chain vs. off-chain limits
+
+Pay3 enforces spending rules at two independent layers:
+
+| Layer | Where it runs | What it controls |
+|---|---|---|
+| **Off-chain policy** | Pay3 servers | Daily budgets, per-tx caps, approval thresholds, allowed assets |
+| **On-chain contract** | Stellar / Soroban | Absolute spending limits baked into the vault contract at session registration |
+
+The on-chain limits are set when you call `add_session` on your contract after creating a session in the dashboard. Even if Pay3's off-chain systems were unavailable, the contract would still reject any transaction exceeding the registered limits.

@@ -1,0 +1,158 @@
+---
+title: "AI Wallets: Delegate Financial Control to AI Agents"
+sidebarTitle: "AI Wallets"
+description: "Learn how Pay3 AI wallets give AI agents delegated spending power over a Soroban vault — without ever exposing your private key."
+---
+
+Pay3 AI wallets let you give AI assistants like Claude, Cursor, or ChatGPT the ability to send payments and manage funds on your behalf — all without touching your private key. Instead of handing an AI unrestricted access to your Stellar account, you allocate a controlled budget into a Soroban smart account vault and issue the AI a temporary session key with hard spending caps. You stay in control. The AI stays in its lane.
+
+## What an AI Wallet Actually Is
+
+An AI wallet in Pay3 is not a separate wallet you create from scratch. It is a combination of three things you already own or configure through the Pay3 dashboard:
+
+<CardGroup cols={3}>
+  <Card title="Your Stellar Wallet" icon="wallet">
+    Your existing Stellar account. Pay3 never replaces it — you connect it to prove identity and authorize the smart account.
+  </Card>
+  <Card title="Soroban Smart Account" icon="shield-check">
+    A USDC vault contract deployed on Stellar. It holds the funds you allocate for AI operations and enforces hard on-chain spending rules.
+  </Card>
+  <Card title="Session Key" icon="key">
+    A temporary Stellar keypair issued to each AI assistant. It can only do what your policy permits, and it expires automatically.
+  </Card>
+</CardGroup>
+
+Together these three components form your AI wallet. Your primary Stellar wallet owns and controls the smart account. The smart account delegates limited authority to session keys. Session keys are what the AI actually uses.
+
+## You Always Own the Wallet
+
+The most important thing to understand about Pay3 AI wallets is the ownership chain:
+
+```
+Your Stellar Wallet (you own this — Pay3 never touches the private key)
+        ↓  owns and controls
+Soroban Smart Account (your USDC vault — you fund it, you withdraw from it)
+        ↓  issues restricted authority to
+AI Session Key (expires, has hard caps, can be revoked instantly)
+        ↓  used by
+Claude / Cursor / ChatGPT / Gemini
+```
+
+At every level, you hold ultimate authority. You can revoke all AI access in a single click from the dashboard's **Emergency Revoke All** control.
+
+## The Soroban Smart Account Vault
+
+When you set up Pay3, you deploy a Soroban smart account — a Rust contract running on Stellar's smart contract layer. This vault does two important things:
+
+1. **Holds the funds allocated for AI operations.** You transfer a limited amount of USDC from your main wallet into the vault. If your main wallet holds 10,000 USDC, you might allocate 200 USDC to the vault. The AI can only ever reach that 200 USDC, even in a worst-case scenario.
+
+2. **Enforces spending limits on-chain.** Every session key registered with the vault carries hard limits — a per-transaction maximum and a daily spending cap — that are validated directly inside the contract. These rules cannot be bypassed by Pay3's backend or by a compromised AI client.
+
+<Note>
+  The smart account enforces critical security boundaries on-chain. Even if Pay3's off-chain policy engine were somehow bypassed, the Soroban contract would still block transactions that exceed the registered limits.
+</Note>
+
+## Hybrid Funding Model
+
+Pay3 supports two ways to fund AI operations, depending on how much on-chain enforcement you want:
+
+<CardGroup cols={2}>
+  <Card title="Vault Funding (Recommended)" icon="vault">
+    You deposit USDC directly into the Soroban smart account. The AI spends from this vault. On-chain limits enforced by the contract give you a hard ceiling — the AI can never exceed the vault balance, regardless of any off-chain factor.
+  </Card>
+  <Card title="Horizon Account Funding" icon="arrows-left-right">
+    The AI uses your main Stellar Horizon account for payments. Spending rules are enforced only by Pay3's off-chain policy engine. Useful for getting started, but does not provide the same on-chain guarantee as the vault model.
+  </Card>
+</CardGroup>
+
+For production use, vault funding is strongly recommended. It limits your exposure to only the funds you explicitly allocate.
+
+## How the AI Gets Access — Without Your Private Key
+
+When you create an AI session, Pay3 generates a fresh Stellar keypair specifically for that session. This is the session key. Pay3 registers the session key's public address on-chain in your smart account vault, along with its expiry timestamp and spending caps. The session key's private key is stored encrypted at rest — the AI assistant never receives it directly. Instead, when the AI calls a Pay3 MCP tool (like `transfer()`), Pay3's backend signs the transaction using the encrypted session key on the AI's behalf.
+
+The AI gets the outcome — a signed, submitted transaction — without ever handling cryptographic material.
+
+<Warning>
+  Your primary Stellar wallet private key is never stored by Pay3, never sent to any AI assistant, and never included in any API response or log. If something claims to need your main private key, do not proceed.
+</Warning>
+
+## Wallet Comparison
+
+| Feature | Traditional Wallet | Smart Wallet | Pay3 AI Wallet |
+|---|---|---|---|
+| **Who initiates transactions** | You, manually | You, with automation | AI agent, within your policy |
+| **Private key exposure** | You hold it | You hold it | AI never sees it |
+| **Spending limits** | None enforced | App-level only | On-chain + off-chain, dual enforcement |
+| **Per-AI isolation** | N/A | N/A | Each AI gets its own independent session |
+| **Automatic expiry** | No | Sometimes | Yes — every session has a hard expiry |
+| **Emergency kill switch** | No | Rarely | Yes — revoke all AI access instantly |
+| **Audit trail** | Blockchain only | Varies | Full transaction + policy decision log |
+| **Sub-cent micropayments** | Impractical | Impractical | Native (Stellar fees ~$0.00001) |
+
+## What the AI Can and Cannot Do
+
+Each AI session you create comes with an explicit permission summary you review before authorizing. Here is a typical example:
+
+<CodeGroup>
+```text Conservative Session (Claude)
+Duration:              24 hours
+Daily Budget:          100 USDC
+Per Transaction:       20 USDC
+Approval Above:        15 USDC
+
+ALLOWED
+✓ Check balance
+✓ Send payments
+✓ View transaction history
+
+BLOCKED
+✗ Unknown contracts
+✗ Unapproved assets
+✗ Actions outside policy
+```
+
+```text Balanced Session (Cursor)
+Duration:              7 days
+Daily Budget:          500 USDC
+Per Transaction:       100 USDC
+Approval Above:        250 USDC
+
+ALLOWED
+✓ Check balance
+✓ Send payments
+✓ Swap assets
+✓ View transaction history
+
+BLOCKED
+✗ Borrowing
+✗ Unknown contracts
+✗ Unapproved assets
+```
+</CodeGroup>
+
+You must explicitly authorize each session by signing with your connected Stellar wallet. No AI assistant receives financial authority silently.
+
+## Setting Up Your AI Wallet
+
+<Steps>
+  <Step title="Connect your Stellar wallet">
+    Open the Pay3 dashboard and connect your existing Stellar wallet. Pay3 verifies your ownership by asking you to sign a one-time authentication challenge. Your private key never leaves your wallet.
+  </Step>
+  <Step title="Deploy your smart account">
+    Create a Soroban smart account vault from the dashboard. This deploys the Pay3 vault contract to Stellar and links it to your connected wallet address.
+  </Step>
+  <Step title="Allocate funds">
+    Transfer a limited amount of USDC from your main wallet into the smart account vault. Start conservatively — you can always add more later or withdraw unused funds at any time.
+  </Step>
+  <Step title="Create an AI session">
+    Choose your AI client (Claude, Cursor, ChatGPT, Gemini, or any MCP-compatible client), set a session duration, and configure your spending policy. Review the permission summary, then authorize with your wallet.
+  </Step>
+  <Step title="Connect your AI client">
+    Pay3 provides an MCP server configuration snippet. Add it to your AI client's settings. The AI will now be able to call Pay3 tools within the bounds of your policy.
+  </Step>
+</Steps>
+
+<Tip>
+  Start with the **Conservative** policy preset to get familiar with how AI wallets behave. You can always increase limits once you've seen how your AI assistant uses its permissions.
+</Tip>

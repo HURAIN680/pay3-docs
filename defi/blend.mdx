@@ -1,0 +1,102 @@
+---
+title: "Blend: AI-Automated Lending and Borrowing on Stellar"
+sidebarTitle: "Blend"
+description: "Use Pay3 to let AI agents supply assets, borrow funds, repay loans, and prevent liquidation on the Blend lending protocol."
+---
+
+Blend is a decentralized lending protocol built on Stellar Soroban that lets you supply assets to earn yield and borrow assets against your collateral. With Pay3, you don't need to monitor Blend manually or remember to top up your collateral before a bad market day — your AI handles it automatically, inside the spending policies you've defined. Whether you want to put idle USDC to work, take out a short-term loan, or make sure you're never liquidated, Pay3 gives your AI the tools to act on your behalf in real time.
+
+<Info>
+  Blend integration is planned for **Phase 2** of the Pay3 roadmap and is not yet available in the current release. The features described on this page are coming soon.
+</Info>
+
+<Warning>
+  Automated lending and borrowing carries real financial risk. If your collateral value drops and your health factor falls too low, your position can be liquidated. Always set a **conservative health factor threshold** (we recommend 1.5 or above) so your AI has enough time to repay before liquidation occurs.
+</Warning>
+
+## What your AI can do on Blend
+
+<CardGroup cols={2}>
+  <Card title="Supply assets" icon="arrow-up-to-line">
+    Deposit USDC or other supported assets into Blend liquidity pools to earn variable yield. Your AI can supply idle balances automatically so your capital is always working.
+  </Card>
+  <Card title="Borrow assets" icon="arrow-down-from-line">
+    Take out loans against your supplied collateral. Your AI can execute borrows when you need liquidity without selling your holdings.
+  </Card>
+  <Card title="Repay loans" icon="circle-check">
+    Clear outstanding debt before fees accumulate or your health factor drops dangerously low. Your AI can repay proactively on a schedule or in response to market conditions.
+  </Card>
+  <Card title="Monitor health factor" icon="heart-pulse">
+    Continuously track your loan-to-collateral ratio. If your health factor drops below a threshold you set, your AI triggers an automatic repayment to protect your position.
+  </Card>
+</CardGroup>
+
+## Example AI commands
+
+Tell your AI assistant what you want in plain language:
+
+```text
+"Supply 500 USDC to Blend to earn yield"
+"Borrow 100 XLM against my USDC collateral"
+"Repay my Blend loan before it gets liquidated"
+"Monitor my loan health and auto-repay if it drops below 1.2"
+```
+
+## How lending actions flow through Pay3
+
+Every Blend interaction follows the same secure path as any other Pay3 action:
+
+<Steps>
+  <Step title="You issue a command">
+    Tell your AI to supply, borrow, repay, or monitor your Blend position.
+  </Step>
+  <Step title="Pay3 calls the Blend MCP tool">
+    Your AI invokes the appropriate Pay3 tool — `wallet.supply()`, `wallet.borrow()`, or `wallet.repay()` — through the MCP server.
+  </Step>
+  <Step title="Policy engine validates the action">
+    Pay3 checks that Blend is in your allowed protocols list, verifies the asset is permitted, and confirms the amount falls within your daily budget and per-transaction limit.
+  </Step>
+  <Step title="Transaction is authorized and submitted">
+    Your session key signs the Soroban transaction. Pay3 submits it to the Stellar network and returns the result to your AI.
+  </Step>
+  <Step title="Your AI confirms and updates you">
+    Your AI reports your new supplied balance, outstanding debt, or updated health factor — no manual dashboard check required.
+  </Step>
+</Steps>
+
+## Policy integration
+
+Supply and borrow actions count against your session's daily budget and per-transaction limit, just like payments do.
+
+<Tip>
+  Use the **DeFi** policy preset when creating your AI session to unlock the higher daily budgets and protocol allowances that lending strategies typically require. You can customize the health factor auto-repay threshold separately in your session settings.
+</Tip>
+
+Here's how a typical Blend-focused policy might look:
+
+| Setting | Recommended value |
+|---|---|
+| Daily budget | 2,000 USDC |
+| Per-transaction limit | 500 USDC |
+| Approval threshold | 1,000 USDC |
+| Allowed protocols | Blend |
+| Allowed assets | USDC, XLM |
+| Auto-repay health threshold | 1.5 |
+
+Actions above your approval threshold — such as a large initial supply — are queued as pending approvals in your Pay3 dashboard. Your AI will wait for your sign-off before proceeding.
+
+## Health factor monitoring
+
+The health factor is a numeric score that represents the safety of your loan. A health factor below **1.0** means your position is eligible for liquidation by the protocol.
+
+<Note>
+  Set your auto-repay threshold to **1.5 or higher**, not 1.0. Liquidations can happen quickly during volatile markets — giving your AI a wider buffer ensures it has time to execute a repayment transaction on Stellar before the protocol can liquidate your collateral.
+</Note>
+
+When your AI is monitoring health factor, it watches your Blend position continuously during its active session. If the health factor crosses your threshold, it immediately calls `wallet.repay()` with enough funds to restore your position to a safe level — all without you having to do anything.
+
+## Security reminders
+
+- Your AI never holds your primary wallet's private key — it operates through a temporary session key that expires automatically.
+- Revoking your AI session from the Pay3 dashboard immediately stops all further Blend interactions.
+- Use **Emergency Revoke All** to instantly cut off every AI session if you need to retake full manual control.

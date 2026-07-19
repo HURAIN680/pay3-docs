@@ -1,0 +1,288 @@
+---
+title: "Pay3 MCP Tools Reference: balance, transfer, history"
+sidebarTitle: "MCP Tools"
+description: "Full reference for the three Pay3 MCP tools — get_balance, transfer, and get_transaction_history — with parameters and example AI prompts."
+---
+
+The Pay3 MCP server registers three tools that your AI assistant can call on your behalf. Every call is authenticated with your session's MCP auth token and evaluated by the Policy Engine before any action is taken on-chain. This page documents each tool's parameters, possible outcomes, and example prompts you can use to trigger them naturally in conversation.
+
+---
+
+## `get_balance`
+
+Returns the current balance of a specific asset held in your Pay3 smart account for the active session.
+
+### Parameters
+
+<ParamField body="asset" type="string" required>
+  The asset code to query. Must be one of: `USDC`, `XLM`.
+
+  The asset code is case-insensitive — `usdc`, `USDC`, and `Usdc` all work.
+</ParamField>
+
+### Example AI prompts
+
+- *"What is my USDC balance?"*
+- *"How much XLM do I have in my Pay3 wallet?"*
+- *"Check my balance before I send a payment."*
+
+### Example response
+
+```json
+{
+  "asset": "USDC",
+  "balance": "245.50",
+  "sessionId": "ses_abc123",
+  "smartAccountId": "sma_xyz789",
+  "source": "soroban_vault"
+}
+```
+
+### Response fields
+
+<ResponseField name="asset" type="string">
+  The normalised asset code you queried, e.g. `"USDC"`.
+</ResponseField>
+<ResponseField name="balance" type="string">
+  The current balance as a decimal string, e.g. `"245.50"`.
+</ResponseField>
+<ResponseField name="sessionId" type="string">
+  The ID of the AI session that made the request.
+</ResponseField>
+<ResponseField name="smartAccountId" type="string">
+  The Pay3 smart account ID associated with this session.
+</ResponseField>
+<ResponseField name="source" type="string">
+  Where the balance was read from. `"soroban_vault"` for USDC via the on-chain vault contract; `"horizon"` for XLM and other assets queried directly from the Stellar network.
+</ResponseField>
+
+---
+
+## `transfer`
+
+Initiates a payment from your Pay3 smart account to a recipient. Before the transaction is submitted to Stellar, it passes through the Policy Engine and resolves the recipient address. Depending on your session's policy configuration, the transfer is either auto-executed, queued for your manual approval, or rejected.
+
+### Parameters
+
+<ParamField body="recipient" type="string" required>
+  The destination for the payment. Accepts:
+  - A full Stellar public key (`G...`)
+  - A verified contact name or alias saved in your Pay3 account (e.g. `"Alice"`)
+</ParamField>
+<ParamField body="asset" type="string" required>
+  The asset to send. Must be one of: `USDC`, `XLM`.
+</ParamField>
+<ParamField body="amount" type="string" required>
+  The amount to send, expressed as a decimal string. Examples: `"5"`, `"10.00"`, `"0.50"`.
+</ParamField>
+<ParamField body="memo" type="string">
+  An optional memo attached to the Stellar transaction. Useful for referencing invoices or order IDs. Example: `"invoice-42"`.
+</ParamField>
+<ParamField body="idempotencyKey" type="string">
+  A stable, unique key for this payment intent (8–128 characters). If you retry the same transfer, reuse the exact same key — Pay3 will recognise the duplicate and return the original result instead of submitting a second transaction. Generate a UUID per payment attempt, or use a meaningful identifier like `"order-789-payment-1"`.
+</ParamField>
+
+### Execution outcomes
+
+Every `transfer` call produces one of three outcomes:
+
+<CardGroup cols={3}>
+  <Card title="AUTO_EXECUTE" icon="circle-check">
+    The transfer passed all policy checks and was submitted to Stellar immediately. The response includes the Stellar transaction hash.
+  </Card>
+  <Card title="PENDING_APPROVAL" icon="clock">
+    The transfer exceeded a threshold in your policy (e.g. single-transaction limit) and is queued for your manual approval in the Pay3 Dashboard. You have **2 minutes** to approve or reject it.
+  </Card>
+  <Card title="REJECTED" icon="circle-xmark">
+    The transfer violated a policy rule — daily budget exceeded, asset not allowed, session expired, etc. The response explains which rule was violated.
+  </Card>
+</CardGroup>
+
+### Example AI prompts
+
+- *"Send 5 USDC to Alice."*
+- *"Pay Bob 0.50 XLM for the API call."*
+- *"Transfer 100 USDC to GABCDE...XYZ with memo 'invoice-42'."*
+- *"Pay the supplier 200 USDC. Use idempotency key order-1234."*
+
+### Example responses
+
+<Tabs>
+  <Tab title="Success (AUTO_EXECUTE)">
+    ```json
+    {
+      "status": "SUCCESS",
+      "transactionId": "txn_abc123",
+      "stellarHash": "abc123...def456",
+      "amount": "5.00",
+      "asset": "USDC",
+      "recipient": "GABCDE...XYZ"
+    }
+    ```
+  </Tab>
+  <Tab title="Pending Approval">
+    ```json
+    {
+      "status": "PENDING_APPROVAL",
+      "transactionId": "txn_xyz789",
+      "message": "Payment requires manual approval in the Pay3 dashboard. The approval request expires in 2 minutes."
+    }
+    ```
+
+    <Warning>
+      If you do not approve the transaction in the Pay3 Dashboard within **2 minutes**, the request expires and the transfer is cancelled. Ask your AI assistant to retry if needed.
+    </Warning>
+  </Tab>
+  <Tab title="Rejected">
+    ```json
+    {
+      "status": "REJECTED",
+      "rejectionReason": "Daily budget of 500 USDC has been reached for this session."
+    }
+    ```
+
+    The `rejectionReason` field always explains which policy rule blocked the transfer.
+  </Tab>
+</Tabs>
+
+### Response fields
+
+<ResponseField name="status" type="string">
+  One of `SUCCESS`, `PENDING_APPROVAL`, or `REJECTED`.
+</ResponseField>
+<ResponseField name="transactionId" type="string">
+  Pay3's internal transaction ID. Use this to look up the transaction in the Dashboard.
+</ResponseField>
+<ResponseField name="stellarHash" type="string">
+  The Stellar network transaction hash. Present only when `status` is `SUCCESS`. Use this to verify the transaction on a Stellar explorer.
+</ResponseField>
+<ResponseField name="amount" type="string">
+  The amount that was sent, as a decimal string. Present on success.
+</ResponseField>
+<ResponseField name="asset" type="string">
+  The asset that was sent. Present on success.
+</ResponseField>
+<ResponseField name="recipient" type="string">
+  The resolved Stellar address of the recipient. Present on success.
+</ResponseField>
+<ResponseField name="message" type="string">
+  A human-readable message. Present when `status` is `PENDING_APPROVAL`.
+</ResponseField>
+<ResponseField name="rejectionReason" type="string">
+  Explanation of which policy rule blocked the transfer. Present when `status` is `REJECTED`.
+</ResponseField>
+
+---
+
+## `get_transaction_history`
+
+Returns the most recent transactions recorded for the current AI session, sorted newest-first.
+
+<Note>
+  `get_transaction_history` only returns transactions made **within the current session**. Transactions from other sessions — including previous sessions on the same account — are not included. To view your full cross-session history, open the Pay3 Dashboard.
+</Note>
+
+### Parameters
+
+<ParamField body="limit" type="number">
+  The maximum number of transactions to return. Must be between `1` and `50`. Defaults to `20` if omitted.
+</ParamField>
+
+### Example AI prompts
+
+- *"Show me my last 10 transactions."*
+- *"What payments have I made today?"*
+- *"Did my transfer to Alice go through?"*
+
+### Example response
+
+```json
+{
+  "transactions": [
+    {
+      "id": "txn_abc123",
+      "action": "TRANSFER",
+      "asset": "USDC",
+      "amount": "5.00",
+      "recipientInput": "Alice",
+      "recipientAddress": "GABCDE...XYZ",
+      "status": "SUCCESS",
+      "policyDecision": "AUTO_EXECUTE",
+      "stellarTransactionHash": "abc123...def456",
+      "createdAt": "2025-01-15T10:30:00Z",
+      "completedAt": "2025-01-15T10:30:05Z"
+    },
+    {
+      "id": "txn_def456",
+      "action": "TRANSFER",
+      "asset": "XLM",
+      "amount": "0.50",
+      "recipientInput": "Bob",
+      "recipientAddress": "GHIJK...LMN",
+      "status": "PENDING_APPROVAL",
+      "policyDecision": "PENDING_APPROVAL",
+      "stellarTransactionHash": null,
+      "createdAt": "2025-01-15T10:28:00Z",
+      "completedAt": null
+    }
+  ]
+}
+```
+
+### Response fields
+
+<ResponseField name="transactions" type="array">
+  An array of transaction objects, sorted newest-first.
+
+  <Expandable title="Transaction object fields">
+    <ResponseField name="id" type="string">
+      Pay3's internal transaction ID.
+    </ResponseField>
+    <ResponseField name="action" type="string">
+      The type of action. Currently `TRANSFER`.
+    </ResponseField>
+    <ResponseField name="asset" type="string">
+      The asset involved, e.g. `"USDC"` or `"XLM"`.
+    </ResponseField>
+    <ResponseField name="amount" type="string">
+      The transaction amount as a decimal string.
+    </ResponseField>
+    <ResponseField name="recipientInput" type="string">
+      The original recipient value your AI assistant provided (e.g. a contact name like `"Alice"`).
+    </ResponseField>
+    <ResponseField name="recipientAddress" type="string">
+      The resolved Stellar public key of the recipient.
+    </ResponseField>
+    <ResponseField name="status" type="string">
+      Current transaction status: `SUCCESS`, `PENDING_APPROVAL`, `REJECTED`, or `FAILED`.
+    </ResponseField>
+    <ResponseField name="policyDecision" type="string">
+      The Policy Engine's decision: `AUTO_EXECUTE`, `PENDING_APPROVAL`, or `REJECTED`.
+    </ResponseField>
+    <ResponseField name="stellarTransactionHash" type="string">
+      The Stellar network transaction hash. `null` if the transaction has not yet been submitted.
+    </ResponseField>
+    <ResponseField name="createdAt" type="string">
+      ISO 8601 timestamp when the transaction was created.
+    </ResponseField>
+    <ResponseField name="completedAt" type="string">
+      ISO 8601 timestamp when the transaction reached a terminal state. `null` if still pending.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+---
+
+## Tool availability by policy
+
+Some tools require specific permissions to be enabled in your session's policy. If your session's policy does not permit an action, the tool call returns a policy error immediately — nothing is submitted to the network.
+
+| Tool | Required permission |
+|---|---|
+| `get_balance` | Balance read allowed |
+| `transfer` | Transfer allowed |
+| `get_transaction_history` | History read allowed |
+
+<Tip>
+  Review and update your session's policy settings in the **Sessions** section of the [Pay3 Dashboard](https://pay3.finance/dashboard/sessions).
+</Tip>

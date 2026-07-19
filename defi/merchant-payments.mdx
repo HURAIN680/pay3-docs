@@ -1,0 +1,135 @@
+---
+title: "Merchant Payments: AI-Driven Business Transactions"
+sidebarTitle: "Merchant Payments"
+description: "Learn how Pay3 enables AI agents to autonomously pay merchants, suppliers, and service providers using USDC on Stellar."
+---
+
+Merchant payments let your AI act as a fully autonomous business payment agent — paying supplier invoices, settling vendor bills, covering SaaS subscriptions, and purchasing API access, all in USDC on Stellar, without you having to log into a payment portal or approve every line item manually. Your AI identifies the recipient, resolves their Stellar address from your saved contacts, validates the payment against your spending policy, and executes the transfer — giving you a complete audit trail in your Pay3 dashboard when it's done.
+
+## Use cases
+
+<CardGroup cols={2}>
+  <Card title="Supplier payments" icon="truck">
+    A restaurant AI detects that vegetable inventory is running low, places an order with your preferred supplier, and pays the USDC invoice automatically — all before the morning rush.
+  </Card>
+  <Card title="Vendor invoice settlement" icon="file-invoice-dollar">
+    Your business AI scans incoming vendor invoices, matches them against purchase orders, and settles approved amounts in USDC without any manual data entry or wire transfers.
+  </Card>
+  <Card title="API pay-per-use" icon="bolt">
+    An AI agent pays for exactly the API calls it consumes using the x402 protocol — no monthly subscription, no credit card, no overage surprises. Pay only for what you use.
+  </Card>
+  <Card title="SaaS billing without credit cards" icon="credit-card">
+    Replace static credit-card subscriptions with policy-controlled USDC payments. Your AI handles recurring billing automatically within your monthly budget limits.
+  </Card>
+</CardGroup>
+
+## How it works
+
+When your AI needs to pay a merchant, it calls Pay3's `transfer` MCP tool with the merchant's name or alias. Pay3 handles the rest:
+
+<Steps>
+  <Step title="Recipient resolution">
+    Pay3 looks up the merchant name in your saved contacts and resolves it to a verified Stellar address. If the name is ambiguous or not found, your AI stops and asks you for clarification — Pay3 never guesses a payment recipient.
+  </Step>
+  <Step title="Policy validation">
+    Pay3 checks that the merchant is on your allowed recipients list, confirms the payment asset (USDC) is permitted, and verifies the amount is within your daily budget and per-transaction limit.
+  </Step>
+  <Step title="Execution decision">
+    If the payment is within your autonomous limit, Pay3 executes immediately. If it exceeds your approval threshold, it queues the payment for your review in the dashboard.
+  </Step>
+  <Step title="Transaction submitted to Stellar">
+    Pay3 signs the transaction with your session key and submits it to the Stellar network. Settlement typically completes in 3–5 seconds.
+  </Step>
+  <Step title="Confirmation">
+    Your AI confirms the payment with the transaction ID, amount, recipient, and timestamp. The record appears in your Pay3 transaction history for audit purposes.
+  </Step>
+</Steps>
+
+## Example: paying a supplier invoice
+
+Here's what a real merchant payment looks like end-to-end:
+
+```text
+User:   "Pay the USDC invoice from Acme Supplies — 250 USDC"
+
+AI      → calls Pay3 transfer() MCP tool
+          recipient: "Acme Supplies"
+          asset: "USDC"
+          amount: "250"
+
+Pay3    → resolves "Acme Supplies" from saved contacts
+          → found: GDXT...7KQP (verified Stellar address)
+          → policy check: 250 USDC within daily budget ✓
+          → per-transaction limit: 250 USDC ✓
+          → approval threshold: 250 USDC ✓ (auto-executes)
+          → session key signs transaction
+          → submitted to Stellar
+
+AI      → "Done — 250 USDC sent to Acme Supplies.
+            Transaction ID: abc123. Your daily budget
+            remaining: 750 USDC."
+```
+
+<Note>
+  Merchant payments above your manual approval threshold are automatically queued for your review in the Pay3 dashboard. Your AI will inform you that approval is required and wait — it will not retry or find a workaround. Pending approvals expire after **2 minutes**, so check your dashboard promptly when your AI flags one.
+</Note>
+
+## Subscription and recurring billing
+
+<Info>
+  **Subscription billing and recurring vendor payments** are planned for **Phase 3** of the Pay3 roadmap. In Phase 3, you'll be able to configure recurring payment rules — for example, "pay Acme Supplies up to 500 USDC on the first of each month" — and your AI will execute them automatically without requiring a new command each time.
+</Info>
+
+## Procurement automation
+
+<Info>
+  **Procurement OS** capabilities are planned for **Phase 4** of the Pay3 roadmap. In Phase 4, your AI will be able to discover suppliers, collect and compare quotes, present a recommendation, and — after you approve — execute a smart-contract escrow that releases payment automatically upon delivery confirmation. This closes the loop from purchase order to payment with minimal human effort.
+</Info>
+
+The full Phase 4 procurement workflow looks like this:
+
+<Steps>
+  <Step title="Business need identified">
+    Your AI detects that inventory, services, or resources need to be replenished or purchased.
+  </Step>
+  <Step title="Supplier discovery">
+    Your AI searches the Pay3 merchant registry and your existing vendor list to identify qualified suppliers.
+  </Step>
+  <Step title="Quote collection">
+    Your AI contacts suppliers and collects structured quotes — price, delivery time, terms.
+  </Step>
+  <Step title="Comparison and recommendation">
+    Your AI compares quotes against your configured criteria and surfaces the best option with a clear rationale.
+  </Step>
+  <Step title="Human approval">
+    You review the recommendation in your Pay3 dashboard and authorize the purchase with a single tap.
+  </Step>
+  <Step title="Smart contract escrow">
+    Pay3 locks the payment in a Soroban smart-contract escrow. Funds are held securely until delivery is confirmed.
+  </Step>
+  <Step title="Delivery confirmation and payment">
+    When delivery is confirmed, the escrow releases automatically and the supplier receives their USDC. No chase emails, no wire delays.
+  </Step>
+</Steps>
+
+## Policy settings for merchant payments
+
+Merchant payments use the same policy engine as every other Pay3 action. You can restrict payments to a specific list of approved merchants, cap the maximum single payment, and set a monthly vendor budget independently of your DeFi or general spending limits.
+
+<Tip>
+  Add your regular suppliers and vendors to your **Saved Contacts** in the Pay3 dashboard before enabling merchant payment automation. Your AI can only pay verified, named contacts — this prevents accidental or unauthorized payments to unknown addresses.
+</Tip>
+
+| Setting | What it controls |
+|---|---|
+| Per-transaction limit | Maximum single merchant payment |
+| Daily budget | Total daily spend across all payments |
+| Approval threshold | Payments above this value queue for your review |
+| Allowed recipients | Restrict payments to specific saved contacts only |
+| Allowed assets | Typically USDC for merchant payments |
+
+## Security reminders
+
+- Your AI resolves recipients from your verified contacts only — it will never pay an unknown or unverified Stellar address.
+- Ambiguous recipient names always stop the payment and prompt you for clarification.
+- Your AI session key expires automatically, and you can revoke all AI access instantly from the Pay3 dashboard using **Emergency Revoke All**.

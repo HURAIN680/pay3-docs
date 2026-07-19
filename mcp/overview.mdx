@@ -1,0 +1,65 @@
+---
+title: "Pay3 MCP Server: AI-Powered Payments via MCP"
+sidebarTitle: "Overview"
+description: "The Pay3 MCP server exposes three financial tools to any MCP-compatible AI assistant — get balance, transfer, and transaction history."
+---
+
+The Pay3 MCP server is the bridge between your AI assistant and Stellar-based payments. It runs locally on your machine via `npx`, authenticates every request with your session's MCP auth token, and enforces your spending policies before a single satoshi moves — giving you autonomous AI payments without ever exposing your private key.
+
+## How it works
+
+When you (or your AI agent) ask Claude to "pay Alice 5 USDC," the request travels through a strict, policy-enforced pipeline before anything happens on-chain:
+
+1. Your AI assistant calls a Pay3 MCP tool.
+2. The MCP server authenticates the request using your `PAY3_MCP_AUTH_TOKEN`.
+3. The Pay3 Policy Engine evaluates the request against your session's rules (spend limits, allowed assets, rate limits, and more).
+4. If the policy check passes, the transaction is submitted to the Stellar network via your Soroban smart account.
+5. The result — a Stellar transaction hash, a pending-approval notice, or a policy rejection — is returned directly to your AI assistant.
+
+<Note>
+  Your private key never leaves your wallet. The MCP server only holds a **delegated session key** scoped to the permissions you defined when you created the session.
+</Note>
+
+## Available tools
+
+The MCP server exposes three tools today. Each tool maps to a specific financial action your AI assistant can perform on your behalf.
+
+<CardGroup cols={3}>
+  <Card title="get_balance" icon="wallet">
+    Query the current USDC or XLM balance of your Pay3 smart account in real time.
+  </Card>
+  <Card title="transfer" icon="paper-plane">
+    Send USDC or XLM to a Stellar address or saved contact alias. Subject to full policy enforcement.
+  </Card>
+  <Card title="get_transaction_history" icon="clock-rotate-left">
+    Retrieve the most recent transactions from the current AI session, sorted newest-first.
+  </Card>
+</CardGroup>
+
+## Compatible AI clients
+
+The MCP server works with any client that supports the Model Context Protocol over stdio transport. Verified integrations include:
+
+| Client | Integration method |
+|---|---|
+| **Claude Desktop** | `claude_desktop_config.json` |
+| **Cursor** | Settings → MCP Servers |
+| **ChatGPT** | MCP integration settings |
+| **Gemini** | MCP integration settings |
+| **LangChain** | `@modelcontextprotocol/sdk` stdio client |
+| **AutoGen** | `@modelcontextprotocol/sdk` stdio client |
+| **CrewAI** | `@modelcontextprotocol/sdk` stdio client |
+
+Any framework that supports the MCP stdio transport can connect to Pay3 using the same configuration pattern.
+
+## Security model
+
+Pay3 is built on the principle that your AI assistant should be powerful — but never unconstrained. The security model rests on three pillars:
+
+- **No private key exposure.** Your AI assistant never sees your wallet's private key. It only ever holds a short-lived, scoped session key.
+- **Policy-first execution.** Every tool call passes through the Policy Engine before any on-chain action occurs. Spend limits, daily budgets, allowed assets, and rate limits are all enforced automatically.
+- **Human-in-the-loop approvals.** Transfers that exceed a threshold you define are queued for your manual approval in the Pay3 Dashboard rather than auto-executed.
+
+<Tip>
+  Head to the [Setup guide](/mcp/setup) to connect your first AI client, or jump straight to the [Tools reference](/mcp/tools) to see every parameter and example response.
+</Tip>

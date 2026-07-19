@@ -1,0 +1,103 @@
+---
+title: "GET /api/policies — List Your Spending Policies"
+sidebarTitle: "GET /policies"
+description: "GET /api/policies — returns all spending policies you have created, including presets and custom policies with their budget configurations."
+---
+
+Fetch all active spending policies on your account. A spending policy defines the guardrails — daily budgets, per-transaction caps, manual approval thresholds, allowed assets, and session lifetimes — that govern what an AI session is permitted to do. Use this endpoint to inspect your existing policies before attaching one to a new session, or to audit your current configuration.
+
+## Endpoint
+
+```
+GET /api/policies
+```
+
+## Authentication
+
+All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
+
+```
+Authorization: Bearer <token>
+```
+
+## Response
+
+Returns an array of policy objects, ordered newest-first. Policies that have been deleted (soft-deleted via `isActive: false`) are excluded.
+
+### Response fields
+
+<ResponseField name="id" type="string" required>
+  Unique UUID for this policy.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  Display name you assigned when the policy was created.
+</ResponseField>
+
+<ResponseField name="preset" type="string" required>
+  The preset template this policy was created from. One of:
+  - `CONSERVATIVE` — $100/day, $20/tx, approval above $15, 24-hour sessions
+  - `BALANCED` — $500/day, $100/tx, approval above $250, 7-day sessions
+  - `DEFI` — $1,000/day, $250/tx, approval above $500, 7-day sessions
+  - `CUSTOM` — fully user-defined limits
+</ResponseField>
+
+<ResponseField name="dailyBudget" type="string" required>
+  Maximum total spend allowed per calendar day, in USD. Returned as a decimal string.
+</ResponseField>
+
+<ResponseField name="perTransactionMax" type="string" required>
+  Maximum amount allowed in a single transaction, in USD. Transactions exceeding this value are rejected outright.
+</ResponseField>
+
+<ResponseField name="manualApprovalThreshold" type="string" required>
+  Transactions above this USD amount (but at or below `perTransactionMax`) are sent to the approval queue rather than executed automatically.
+</ResponseField>
+
+<ResponseField name="sessionDurationHours" type="number" required>
+  How long sessions created with this policy remain active, in hours.
+</ResponseField>
+
+<ResponseField name="allowedAssets" type="array" required>
+  List of asset tickers the AI is permitted to transact with, e.g. `["USDC", "XLM"]`. Transactions involving any other asset are rejected.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp when the policy was created.
+</ResponseField>
+
+## Example request
+
+```bash
+curl https://api.pay3.dev/api/policies \
+  -H "Authorization: Bearer <token>"
+```
+
+## Example response
+
+```json
+[
+  {
+    "id": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
+    "name": "My Custom Policy",
+    "preset": "CUSTOM",
+    "dailyBudget": "250.0000000",
+    "perTransactionMax": "75.0000000",
+    "manualApprovalThreshold": "50.0000000",
+    "sessionDurationHours": 72,
+    "allowedAssets": ["USDC", "XLM"],
+    "createdAt": "2025-07-01T10:00:00.000Z"
+  },
+  {
+    "id": "c2d3e4f5-0000-1111-2222-333344445555",
+    "name": "Balanced Preset",
+    "preset": "BALANCED",
+    "dailyBudget": "500.0000000",
+    "perTransactionMax": "100.0000000",
+    "manualApprovalThreshold": "250.0000000",
+    "sessionDurationHours": 168,
+    "allowedAssets": ["USDC", "XLM"],
+    "createdAt": "2025-06-20T08:00:00.000Z"
+  }
+]
+```

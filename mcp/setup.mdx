@@ -1,0 +1,216 @@
+---
+title: "Connect Your AI Assistant to Pay3 via MCP"
+sidebarTitle: "Setup"
+description: "Step-by-step guide to configure Claude Desktop, Cursor, and custom agents to connect to Pay3 and start making autonomous AI-driven payments."
+---
+
+Connecting your AI assistant to Pay3 takes less than five minutes. You install nothing permanently — the MCP server runs on demand via `npx` each time your AI client starts. All you need is a Pay3 account, an active session, and the MCP auth token that session generates.
+
+## Prerequisites
+
+Before you configure any AI client, make sure you have the following ready:
+
+- **A Pay3 account.** Sign up at [pay3.finance](https://pay3.finance) if you haven't already.
+- **An active AI session with an MCP auth token.** Open the Pay3 Dashboard, navigate to **Sessions**, create a new session, and copy the `PAY3_MCP_AUTH_TOKEN`. 
+
+<Warning>
+  Your `PAY3_MCP_AUTH_TOKEN` is shown **only once** when you create the session. Copy it immediately and store it somewhere safe — you cannot retrieve it again. If you lose it, you'll need to create a new session.
+</Warning>
+
+<Note>
+  Pay3 has two environments. Use the correct `API_BASE_URL` for your environment:
+  - **Testnet (sandbox):** `https://api-testnet.pay3.finance`
+  - **Production:** `https://api.pay3.finance`
+</Note>
+
+## MCP server configuration
+
+Every MCP client uses the same underlying JSON configuration block. Fill in your token and target environment, then paste it into the location your client expects.
+
+```json
+{
+  "mcpServers": {
+    "pay3": {
+      "command": "npx",
+      "args": ["-y", "@pay3/mcp-server"],
+      "env": {
+        "PAY3_MCP_AUTH_TOKEN": "<your-mcp-auth-token>",
+        "API_BASE_URL": "https://api.pay3.finance"
+      }
+    }
+  }
+}
+```
+
+Replace `<your-mcp-auth-token>` with the token you copied from the Sessions dashboard.
+
+## Client setup
+
+<Tabs>
+  <Tab title="Claude Desktop">
+    Claude Desktop reads its MCP server list from a single JSON config file on your machine. Follow these steps:
+
+    <Steps>
+      <Step title="Locate the config file">
+        Open (or create) the Claude Desktop config file at the path for your operating system:
+
+        <CodeGroup>
+          ```text macOS
+          ~/Library/Application Support/Claude/claude_desktop_config.json
+          ```
+
+          ```text Windows
+          %APPDATA%\Claude\claude_desktop_config.json
+          ```
+        </CodeGroup>
+      </Step>
+      <Step title="Add the Pay3 MCP server">
+        If the file already contains a `mcpServers` object, merge the `pay3` entry into it. If the file is empty or doesn't exist, paste the full block below:
+
+        ```json claude_desktop_config.json
+        {
+          "mcpServers": {
+            "pay3": {
+              "command": "npx",
+              "args": ["-y", "@pay3/mcp-server"],
+              "env": {
+                "PAY3_MCP_AUTH_TOKEN": "<your-mcp-auth-token>",
+                "API_BASE_URL": "https://api.pay3.finance"
+              }
+            }
+          }
+        }
+        ```
+      </Step>
+      <Step title="Restart Claude Desktop">
+        Quit Claude Desktop completely and reopen it. When it starts, it will launch the Pay3 MCP server in the background. You should now see Pay3 tools available when you click the **tool** icon in the Claude chat interface.
+      </Step>
+      <Step title="Verify the connection">
+        Type the following in a new Claude conversation to confirm everything is working:
+
+        ```text
+        What is my Pay3 USDC balance?
+        ```
+
+        Claude will call `get_balance` and return your current balance.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Cursor">
+    Cursor has a built-in MCP Servers panel in its settings. No manual file editing is required.
+
+    <Steps>
+      <Step title="Open MCP Settings">
+        In Cursor, press `Cmd + ,` (macOS) or `Ctrl + ,` (Windows/Linux) to open **Settings**, then navigate to the **MCP Servers** section.
+      </Step>
+      <Step title="Add a new MCP server">
+        Click **Add MCP Server** and enter the following values:
+
+        | Field | Value |
+        |---|---|
+        | Name | `pay3` |
+        | Command | `npx` |
+        | Args | `-y @pay3/mcp-server` |
+        | `PAY3_MCP_AUTH_TOKEN` | Your token from the Sessions dashboard |
+        | `API_BASE_URL` | `https://api.pay3.finance` |
+
+        Alternatively, switch to **JSON mode** in the MCP panel and paste the config block directly:
+
+        ```json
+        {
+          "mcpServers": {
+            "pay3": {
+              "command": "npx",
+              "args": ["-y", "@pay3/mcp-server"],
+              "env": {
+                "PAY3_MCP_AUTH_TOKEN": "<your-mcp-auth-token>",
+                "API_BASE_URL": "https://api.pay3.finance"
+              }
+            }
+          }
+        }
+        ```
+      </Step>
+      <Step title="Restart Cursor">
+        Save your settings and restart Cursor. The Pay3 MCP server will start automatically on the next launch and the three Pay3 tools will be available to the Cursor AI agent.
+      </Step>
+    </Steps>
+  </Tab>
+
+  <Tab title="Custom Agent (LangChain / AutoGen / CrewAI)">
+    If you're building your own agent with LangChain, AutoGen, CrewAI, or any framework that supports the MCP TypeScript SDK, connect via a stdio transport client.
+
+    <Steps>
+      <Step title="Install the MCP SDK">
+        Add the official MCP client SDK to your project:
+
+        ```bash
+        npm install @modelcontextprotocol/sdk
+        ```
+      </Step>
+      <Step title="Set environment variables">
+        Export your Pay3 credentials before launching your agent process, or load them from a `.env` file:
+
+        ```bash .env
+        PAY3_MCP_AUTH_TOKEN=<your-mcp-auth-token>
+        API_BASE_URL=https://api.pay3.finance
+        ```
+      </Step>
+      <Step title="Connect via stdio transport">
+        Spawn the Pay3 MCP server as a child process and attach a stdio client:
+
+        ```typescript
+        import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+        import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+
+        const transport = new StdioClientTransport({
+          command: "npx",
+          args: ["-y", "@pay3/mcp-server"],
+          env: {
+            PAY3_MCP_AUTH_TOKEN: process.env.PAY3_MCP_AUTH_TOKEN!,
+            API_BASE_URL: process.env.API_BASE_URL!,
+          },
+        });
+
+        const client = new Client({ name: "my-agent", version: "1.0.0" });
+        await client.connect(transport);
+
+        // List available tools
+        const { tools } = await client.listTools();
+        console.log(tools.map((t) => t.name));
+        // → ["get_balance", "transfer", "get_transaction_history"]
+        ```
+      </Step>
+      <Step title="Call a tool">
+        Invoke any Pay3 tool directly from your agent logic:
+
+        ```typescript
+        const result = await client.callTool({
+          name: "get_balance",
+          arguments: { asset: "USDC" },
+        });
+
+        console.log(result.content);
+        ```
+      </Step>
+    </Steps>
+
+    <Tip>
+      Pass the `client` instance to your LangChain `MCPToolkit`, AutoGen tool adapter, or CrewAI tool wrapper to expose `get_balance`, `transfer`, and `get_transaction_history` as native agent tools.
+    </Tip>
+  </Tab>
+</Tabs>
+
+## Next steps
+
+Now that your AI client is connected, explore what each tool can do:
+
+<CardGroup cols={2}>
+  <Card title="MCP Tools Reference" icon="book" href="/mcp/tools">
+    See every parameter, execution outcome, and example AI prompt for all three Pay3 tools.
+  </Card>
+  <Card title="Sessions Dashboard" icon="gauge" href="https://pay3.finance/dashboard/sessions">
+    Manage your active sessions, set spending policies, and approve pending transactions.
+  </Card>
+</CardGroup>

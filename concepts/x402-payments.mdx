@@ -1,0 +1,180 @@
+---
+title: "x402 Protocol: Instant API Micropayments for AI Agents"
+sidebarTitle: "x402 Payments"
+description: "The x402 protocol lets AI agents pay for APIs and digital services per-request using Stellar, with no subscriptions, credit cards, or manual billing."
+---
+
+The x402 protocol turns HTTP's long-dormant `402 Payment Required` status code into a real, working payment mechanism. When an API or MCP server requires payment, it returns a `402` response with the price and receiving address in the headers. Pay3 handles the entire challenge-response cycle automatically — your AI assistant never needs to manage keys, construct transactions, or interact with blockchain infrastructure directly. It just makes requests, and Pay3 ensures the ones that need payment get paid.
+
+## Why x402 Matters for AI Agents
+
+Today's API monetization relies on subscriptions, credit cards, and monthly billing cycles — all of which are designed for humans. An AI agent cannot hold a credit card. It cannot sign up for a subscription. And paying $99/month for an API your agent calls three times makes no economic sense.
+
+x402 changes the model entirely:
+
+- **Pay per call**, not per month — your agent only pays for what it actually uses
+- **Sub-cent micropayments** are viable because Stellar transaction fees are approximately $0.00001
+- **No account creation** at each API provider — the payment itself is the credential
+- **Instant settlement** — Stellar confirms transactions in 3–5 seconds
+
+<Info>
+  x402 is built on the existing HTTP specification. The `402 Payment Required` status code has been reserved since HTTP/1.0 but was never formally standardized for use. Pay3 implements x402 as a practical micropayment protocol on top of this status code using Stellar as the settlement layer.
+</Info>
+
+## The x402 Payment Flow
+
+Here is exactly what happens when an AI agent hits a paid API endpoint through Pay3:
+
+<Steps>
+  <Step title="AI makes a request">
+    Your AI assistant makes a standard HTTP GET (or POST) request to a paid API endpoint. No special headers, no authentication token — just a normal request.
+
+    ```http
+    GET /api/weather?city=london HTTP/1.1
+    Host: api.example.com
+    ```
+  </Step>
+  <Step title="Server responds with 402">
+    The API server recognizes that no payment has been made and returns `HTTP 402 Payment Required`. The response headers include the price, accepted asset, receiving Stellar address, and an optional memo.
+
+    ```http
+    HTTP/1.1 402 Payment Required
+    X-Payment-Required: price=0.01, asset=USDC, receiver=GABCDE...XYZ, memo=weather-req-9f3a
+    ```
+  </Step>
+  <Step title="Pay3 SDK constructs and signs the payment">
+    The Pay3 SDK intercepts the 402 response. It checks the payment parameters against your active session policy (daily budget, per-tx limit, asset permissions), then constructs a Stellar transaction, signs it using your session key, and submits it to the Stellar network. The SDK receives a signed payment proof token once Stellar confirms the transaction.
+  </Step>
+  <Step title="AI resends the request with payment proof">
+    The Pay3 SDK retries the original request with the payment proof token attached in the `X-Payment` header.
+
+    ```http
+    GET /api/weather?city=london HTTP/1.1
+    Host: api.example.com
+    X-Payment: <base64-encoded-stellar-tx-proof>
+    ```
+  </Step>
+  <Step title="Server verifies and delivers the resource">
+    The API server decodes the payment proof, verifies the transaction on the Stellar network (checking the amount, asset, receiver address, and memo), and returns the requested resource with a `200 OK` response.
+  </Step>
+</Steps>
+
+## x402 Payments Go Through Your Policy
+
+x402 payments are not a bypass of your Pay3 spending controls. Every payment triggered by the x402 flow is evaluated by the policy engine first, exactly like a manual `transfer()` call.
+
+<Note>
+  x402 micropayments count against your session's daily budget and are subject to per-transaction limits. If a single API call costs $0.01, it adds $0.01 to your daily spend. If an API charges more than your `perTransactionMax`, the payment is blocked and the API request is not retried.
+</Note>
+
+This means you can safely allow your AI agent to use paid APIs without worrying about runaway costs. Set a daily budget of $5.00 and your agent physically cannot spend more than that, regardless of how many API calls it makes.
+
+## Use Cases
+
+<CardGroup cols={2}>
+  <Card title="Pay-per-API-call" icon="bolt">
+    Access premium data APIs — financial data, weather, maps, news — without subscriptions. Each call costs a fraction of a cent and is settled instantly on Stellar.
+  </Card>
+  <Card title="MCP Tool Invocation" icon="wrench">
+    AI agents using Model Context Protocol can pay for individual tool executions. An MCP server that runs a web search, code analysis, or document parsing can charge per invocation.
+  </Card>
+  <Card title="Per-Query Data Access" icon="database">
+    Research agents can pay for individual database queries or knowledge-base lookups. No bulk subscription required — pay only for the specific records retrieved.
+  </Card>
+  <Card title="Per-Inference AI Model Calls" icon="brain">
+    AI agents can pay other AI model providers per inference request. One agent can call another agent's capabilities on a pure pay-per-use basis, enabling agent-to-agent commerce.
+  </Card>
+</CardGroup>
+
+## The Payment Proof Token
+
+The `X-Payment` header contains a base64-encoded Stellar transaction proof. This proof includes:
+
+- The Stellar transaction hash (allows the server to look it up on-chain)
+- The paying address (your session key's public address)
+- A cryptographic signature confirming the transaction was submitted
+
+API servers verify this proof by querying Stellar's Horizon API to confirm the transaction exists, was successful, transferred the correct amount and asset to the correct receiver address, and included the expected memo. This verification is trustless — the server does not need to trust Pay3; it trusts the Stellar blockchain.
+
+## HTTP Header Reference
+
+**402 Response from a paid server:**
+
+```http
+HTTP/1.1 402 Payment Required
+X-Payment-Required: price=0.01, asset=USDC, receiver=GABCDE...XYZ, memo=req-id-abc123
+Content-Type: application/json
+
+{
+  "error": "Payment required",
+  "price": "0.01",
+  "asset": "USDC"
+}
+```
+
+**Paid request from AI agent (after Pay3 SDK resolves the payment):**
+
+```http
+GET /api/data HTTP/1.1
+Host: api.example.com
+X-Payment: eyJ0eHhpZCI6IjRhYjNjZDEyZWY1...
+```
+
+**Successful response after payment verification:**
+
+```http
+HTTP/1.1 200 OK
+Content-Type: application/json
+X-Payment-Receipt: verified
+
+{ "data": "..." }
+```
+
+## Stellar Makes Micropayments Practical
+
+The economic viability of x402 micropayments depends entirely on transaction fees being negligible. Stellar delivers this:
+
+| Network | Typical Fee | Viable for $0.001 payment? |
+|---|---|---|
+| Ethereum (mainnet) | $0.50 – $5.00+ | No — fee exceeds payment |
+| Ethereum (L2) | $0.01 – $0.10 | Marginal |
+| Bitcoin Lightning | ~$0.001 | Yes, but infrastructure is complex |
+| **Stellar** | **~$0.00001** | **Yes — fee is 0.001% of payment** |
+
+At Stellar's fee levels, an AI agent can make thousands of micropayments per day with a total fee overhead of less than a cent.
+
+<Tip>
+  When building or evaluating paid API services to use with your AI agent, look for services that advertise x402 support or that are registered in the Pay3 API marketplace. These services are pre-configured to work with the Pay3 SDK's automatic challenge-response handling.
+</Tip>
+
+## x402 and the Pay3 Policy Engine Together
+
+The full picture when your AI agent encounters a paid API:
+
+```
+AI makes HTTP request to paid API
+            ↓
+Server returns 402 + payment details
+            ↓
+Pay3 SDK evaluates payment against session policy
+  • Is TRANSFER in allowedActions?
+  • Is USDC in allowedAssets?
+  • Is amount ≤ perTransactionMax?
+  • Would this exceed dailyBudget?
+            ↓
+        APPROVED
+            ↓
+Pay3 signs and submits Stellar transaction
+            ↓
+Stellar confirms (~3-5 seconds)
+            ↓
+Pay3 SDK attaches payment proof to request
+            ↓
+AI retries request with X-Payment header
+            ↓
+Server verifies on Stellar → returns 200
+            ↓
+AI receives the resource it requested
+```
+
+The AI agent experiences this entire flow as a seamless request. From its perspective, it made a request and got a response. Pay3 handled everything in between.

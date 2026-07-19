@@ -1,0 +1,119 @@
+---
+title: "GET /api/transactions — List AI Transaction History"
+sidebarTitle: "GET /transactions"
+description: "GET /api/transactions — returns paginated history of all AI-initiated transactions across all sessions with status and Stellar hashes."
+---
+
+Retrieve a paginated list of every transaction submitted by your AI sessions. Each record includes the asset, amount, recipient Stellar address, current lifecycle status, and — once confirmed — the Stellar transaction hash you can look up on any Stellar explorer. Use this endpoint to audit spending, reconcile balances, and track which transactions are still in flight.
+
+## Endpoint
+
+```
+GET /api/transactions
+```
+
+## Authentication
+
+All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
+
+```
+Authorization: Bearer <token>
+```
+
+## Query parameters
+
+<ParamField query="limit" type="number" default="20">
+  Maximum number of transactions to return per page. Defaults to `20`.
+</ParamField>
+
+<ParamField query="offset" type="number" default="0">
+  Number of records to skip before starting the result set. Use with `limit` to paginate through large histories.
+</ParamField>
+
+## Response
+
+Returns an array of transaction objects ordered by `createdAt` descending (newest first).
+
+### Response fields
+
+<ResponseField name="id" type="string" required>
+  Unique UUID for this transaction.
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  The operation type. Currently always `TRANSFER` for spend transactions.
+</ResponseField>
+
+<ResponseField name="asset" type="string" required>
+  Ticker of the asset being sent, e.g. `"USDC"` or `"XLM"`.
+</ResponseField>
+
+<ResponseField name="amount" type="string" required>
+  Amount being transferred, expressed as a decimal string (e.g. `"42.5000000"`).
+</ResponseField>
+
+<ResponseField name="recipient" type="string" required>
+  The destination Stellar address (G-address) for this transaction.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Current lifecycle status of the transaction. One of:
+  - `PENDING` — waiting in the approval queue (requires your manual approval)
+  - `SIGNING` — Pay3 is signing the Stellar transaction envelope
+  - `SUBMITTING` — the signed envelope is being broadcast to the Stellar network
+  - `SUCCESS` — transaction confirmed on Stellar
+  - `FAILED` — transaction failed; see the full detail endpoint for `rejectionReason`
+  - `EXPIRED` — the approval window closed before you approved it
+</ResponseField>
+
+<ResponseField name="stellarHash" type="string">
+  The Stellar transaction hash, populated once the transaction reaches `SUCCESS`. Use this to look up the transaction on [Stellar Expert](https://stellar.expert) or [Horizon](https://horizon.stellar.org).
+</ResponseField>
+
+<ResponseField name="sessionId" type="string" required>
+  UUID of the AI session that initiated this transaction.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp when the transaction was created.
+</ResponseField>
+
+## Example request
+
+```bash
+curl "https://api.pay3.dev/api/transactions?limit=20&offset=0" \
+  -H "Authorization: Bearer <token>"
+```
+
+## Example response
+
+```json
+[
+  {
+    "id": "d4e5f6a7-abcd-1234-ef56-789012345678",
+    "action": "TRANSFER",
+    "asset": "USDC",
+    "amount": "42.5000000",
+    "recipient": "GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "status": "SUCCESS",
+    "stellarHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+    "sessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "createdAt": "2025-07-08T12:00:00.000Z"
+  },
+  {
+    "id": "c3b2a1f0-9876-5432-fedc-ba0987654321",
+    "action": "TRANSFER",
+    "asset": "XLM",
+    "amount": "100.0000000",
+    "recipient": "GCYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
+    "status": "PENDING",
+    "stellarHash": null,
+    "sessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "createdAt": "2025-07-08T11:45:00.000Z"
+  }
+]
+```
+
+<Note>
+  Transactions with a status of `PENDING` are awaiting your manual approval in the [approvals queue](/api-reference/approvals/list). They will transition to `EXPIRED` if not approved within 2 minutes of the approval request being created.
+</Note>

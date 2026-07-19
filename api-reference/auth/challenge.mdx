@@ -1,0 +1,117 @@
+---
+title: "POST /api/auth/challenge — Request a Sign-In Challenge"
+sidebarTitle: "POST /auth/challenge"
+description: "POST /api/auth/challenge — generates a nonce-based sign-in challenge message for a Stellar wallet address. Returns the message to sign."
+---
+
+The challenge endpoint is the **first step of wallet-based authentication** on Pay3. You send your Stellar public key and receive a one-time, nonce-bound message that you must sign with your wallet's private key using Freighter (or any compatible Ed25519 signer). The signed message is then submitted to [`POST /api/auth/verify`](/api-reference/auth/verify) to complete sign-in and establish a session.
+
+## Endpoint
+
+**`POST /api/auth/challenge`**
+
+No authentication is required to call this endpoint.
+
+---
+
+## Request Body
+
+<ParamField body="walletAddress" type="string" required>
+  Your Stellar Ed25519 public key, beginning with `G`. Must be a valid Stellar
+  account address (56-character StrKey-encoded key).
+
+  **Example:** `GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R`
+</ParamField>
+
+---
+
+## Response
+
+A successful `200 OK` response returns a challenge object. Pass the `message` field to your wallet signer, then send the resulting signature along with the `challengeId` to the verify endpoint.
+
+<ResponseField name="challengeId" type="string">
+  Unique identifier for this challenge. Include this value in the body of your
+  subsequent `POST /api/auth/verify` request.
+</ResponseField>
+
+<ResponseField name="nonce" type="string">
+  The randomly-generated nonce embedded in the challenge message. Used
+  server-side to look up and validate the challenge during verification.
+</ResponseField>
+
+<ResponseField name="message" type="string">
+  The plain-text challenge message that your wallet must sign. This string is
+  what you pass directly to `freighter.signMessage()` or an equivalent signer.
+
+  The message follows this structure:
+  ```
+  Pay3 wants you to sign in with your Stellar wallet.
+
+  Wallet: <walletAddress>
+  Network: <testnet|public>
+  Nonce: <nonce>
+  Issued At: <ISO 8601 timestamp>
+  Expiration: <ISO 8601 timestamp>
+  ```
+</ResponseField>
+
+<ResponseField name="walletAddress" type="string">
+  The normalized Stellar public key echoed back after validation.
+</ResponseField>
+
+<ResponseField name="network" type="string">
+  The Stellar network this challenge was issued for — either `testnet` or `public`.
+</ResponseField>
+
+<ResponseField name="expiresAt" type="string">
+  ISO 8601 timestamp indicating when this challenge expires.
+</ResponseField>
+
+<Note>
+  Challenges expire **5 minutes** after issuance. If your user takes longer than that to sign, request a fresh challenge. Each new request for the same wallet address automatically invalidates any previously unconsumed challenge for that address.
+</Note>
+
+---
+
+## Example
+
+### Request
+
+```bash curl
+curl --request POST \
+  --url https://api.pay3.dev/api/auth/challenge \
+  --header 'Content-Type: application/json' \
+  --data '{
+    "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R"
+  }'
+```
+
+### Request Body
+
+```json
+{
+  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R"
+}
+```
+
+### Response Body
+
+```json
+{
+  "challengeId": "clx4w2k0f0000qwer8tyu1234",
+  "nonce": "8f3a92b1c4e07d56af2190be",
+  "message": "Pay3 wants you to sign in with your Stellar wallet.\n\nWallet: GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R\nNetwork: testnet\nNonce: 8f3a92b1c4e07d56af2190be\nIssued At: 2024-11-01T12:00:00.000Z\nExpiration: 2024-11-01T12:05:00.000Z",
+  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
+  "network": "testnet",
+  "expiresAt": "2024-11-01T12:05:00.000Z"
+}
+```
+
+---
+
+## Error Responses
+
+| HTTP Status | Description |
+|---|---|
+| `400 Bad Request` | `walletAddress` is missing or not a valid Stellar public key. |
+| `422 Unprocessable Entity` | Address format is syntactically invalid (not a G... key). |

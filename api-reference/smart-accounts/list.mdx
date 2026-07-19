@@ -1,0 +1,80 @@
+---
+title: "GET /api/smart-accounts — List Linked Smart Accounts"
+sidebarTitle: "GET /smart-accounts"
+description: "GET /api/smart-accounts — lists all Soroban smart account contracts you have linked to your Pay3 account."
+---
+
+Smart accounts are Soroban contracts deployed on Stellar that act as programmable spending vaults. Once you link a deployed contract to your Pay3 account, AI sessions can reference it to authorize and execute on-chain payments within your defined policies. This endpoint returns every smart account you have linked, ordered by most recently linked first.
+
+## Endpoint
+
+**`GET /api/smart-accounts`**
+
+Authentication is **required**. Include either the `pay3_session` cookie or an `Authorization: Bearer <session-token>` header.
+
+---
+
+## Response
+
+A successful `200 OK` response returns an array of smart account objects. The array is empty (`[]`) if you have not yet linked any contracts.
+
+<ResponseField name="id" type="string">
+  Pay3 internal smart account record ID.
+</ResponseField>
+
+<ResponseField name="contractId" type="string">
+  The Soroban contract address on Stellar — a 56-character `C...` string.
+</ResponseField>
+
+<ResponseField name="network" type="string">
+  The Stellar network this contract is deployed on — `TESTNET` or `MAINNET`.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string">
+  ISO 8601 timestamp of when this smart account was linked to your Pay3 account.
+</ResponseField>
+
+---
+
+## Example
+
+### Request
+
+```bash curl
+curl --request GET \
+  --url https://api.pay3.dev/api/smart-accounts \
+  --header 'Authorization: Bearer your-session-token-here'
+```
+
+### Response Body
+
+```json
+[
+  {
+    "id": "sa_01hx2q3r4s5t6u7v8w9x0y1z",
+    "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE",
+    "network": "TESTNET",
+    "createdAt": "2024-11-01T10:30:00.000Z"
+  },
+  {
+    "id": "sa_01hz9a8b7c6d5e4f3g2h1i0j",
+    "contractId": "CCWAMYJME4H5CKG7OLXGC2T4M7FQGKWH3Y7TMKHBRVNLG6ZQPQHXJDE",
+    "network": "TESTNET",
+    "createdAt": "2024-10-15T08:00:00.000Z"
+  }
+]
+```
+
+### Empty Response (no accounts linked)
+
+```json
+[]
+```
+
+---
+
+## Error Responses
+
+| HTTP Status | Description |
+|---|---|
+| `401 Unauthorized` | Missing or invalid session. |

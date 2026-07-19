@@ -1,47 +1,213 @@
 ---
-title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+title: "Get Started with Pay3 in 5 Steps"
+sidebarTitle: "Quickstart"
+description: "Connect your Freighter wallet, link a smart account, set a spending policy, and make your first AI-powered USDC payment on Stellar in minutes."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+Pay3 gives your AI assistant a secure, policy-controlled wallet on Stellar — so it can check balances, send payments, and interact with DeFi on your behalf without ever touching your private key. This guide walks you through everything from wallet setup to your first AI-initiated transfer.
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+<Note>
+  This guide uses the **Stellar testnet**. No real funds are required. When you're ready to move to mainnet, repeat the same steps using a funded mainnet account and switch the network in Freighter.
+</Note>
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
 
-    ```bash
-    npm install your-package
-    ```
-  </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+  <Step title="Set up prerequisites">
 
-    ```bash
-    your-cli init
-    ```
-  </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+    Before you begin, make sure you have the following ready.
 
-    ```bash
-    your-cli start
-    ```
+    **Freighter wallet**
+
+    Freighter is the official Stellar browser extension wallet. Install it from the [Freighter website](https://www.freighter.app/) and create or import a Stellar account.
+
+    **A funded Stellar testnet account**
+
+    Your testnet account needs two assets:
+
+    - **XLM** — to pay Stellar network transaction fees (a small amount is enough)
+    - **USDC** — the stablecoin Pay3 uses for payments
+
+    Use the [Stellar Laboratory Friendbot](https://laboratory.stellar.org/#account-creator?network=test) to fund your testnet account with XLM. Then add a USDC trustline and claim testnet USDC from a faucet.
+
+    <Tip>
+      The Stellar testnet USDC issuer is `GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5`. Add this as a trustline in Freighter before trying to receive testnet USDC.
+    </Tip>
+
   </Step>
+
+  <Step title="Sign in to the Pay3 dashboard">
+
+    Pay3 authenticates you using a cryptographic challenge — your private key never leaves Freighter.
+
+    1. Navigate to [app.pay3.finance](https://app.pay3.finance) and click **Connect Freighter**.
+    2. Freighter will prompt you to approve the connection — click **Connect**.
+    3. Pay3 issues a one-time challenge message. Freighter will ask you to sign it — click **Sign**.
+    4. You're redirected to the dashboard.
+
+    <Note>
+      If Freighter shows a "connection not secure" warning on localhost, go to **Settings → Security → Advanced** in Freighter and enable insecure domains, then retry.
+    </Note>
+
+  </Step>
+
+  <Step title="Link a smart account">
+
+    A **smart account** is a Soroban vault contract deployed on Stellar. It holds the USDC your AI is allowed to spend, and it enforces hard on-chain limits that the AI cannot bypass — even if the off-chain policy is misconfigured.
+
+    1. In the dashboard sidebar, go to **Sessions**.
+    2. Under **Link smart account**, paste your Soroban contract ID (a string starting with `C`).
+    3. Click **Link contract**.
+
+    Your linked contract ID appears in the list below the form once confirmed.
+
+    <Info>
+      Don't have a Soroban vault contract yet? You can deploy the open-source Pay3 vault contract from the [contracts/smart-account](https://github.com/debuuuuuu/PAY3/tree/main/contracts/smart-account) directory, or contact the Pay3 team for a testnet deployment.
+    </Info>
+
+  </Step>
+
+  <Step title="Create a spending policy">
+
+    A **policy** defines exactly what your AI session is allowed to do: how much it can spend per day, how much per transaction, which assets it can use, and at what amount it must ask for your manual approval.
+
+    1. In the dashboard sidebar, go to **Policies**.
+    2. Give your policy a name (e.g. `My first policy`).
+    3. Choose a **preset** from the table below, or select **Custom** to set your own values.
+    4. Click **Create policy**.
+
+    | Preset | Daily limit | Per-tx limit | Approval threshold | Session length | Allowed assets |
+    |---|---|---|---|---|---|
+    | **CONSERVATIVE** | $100 | $20 | $15 | 24 hours | USDC, XLM |
+    | **BALANCED** | $500 | $100 | $250 | 168 hours | USDC, XLM |
+    | **DEFI** | $1,000 | $250 | $500 | 168 hours | USDC, XLM |
+    | **CUSTOM** | You choose | You choose | You choose | You choose | You choose |
+
+    <Tip>
+      Start with **CONSERVATIVE** for your first session. You can always create a more permissive policy later once you're comfortable with how the approval flow works.
+    </Tip>
+
+  </Step>
+
+  <Step title="Create an AI session and configure your client">
+
+    A **session** connects your smart account and policy to a specific AI client, and produces an MCP auth token your AI uses to authenticate every tool call.
+
+    **Create the session**
+
+    1. Still in **Sessions**, scroll to **Create session**.
+    2. Select your linked smart account and the policy you just created.
+    3. Choose your AI client: **Cursor**, **Claude**, **ChatGPT**, **Gemini**, or **Other**.
+    4. Click **Create AI session**.
+
+    A panel appears with your **MCP auth token** and a ready-to-use **mcpConfig** JSON block. Copy both — the token is shown only once.
+
+    **Add the config to your AI client**
+
+    Paste the `mcpConfig` into your client's settings file. The JSON looks like this:
+
+    <CodeGroup>
+
+    ```json mcpConfig
+    {
+      "mcpServers": {
+        "pay3": {
+          "command": "npx",
+          "args": ["-y", "@pay3/mcp-server"],
+          "env": {
+            "PAY3_MCP_AUTH_TOKEN": "<your-token-here>",
+            "API_BASE_URL": "https://api.pay3.finance"
+          }
+        }
+      }
+    }
+    ```
+
+    ```json Claude Desktop (claude_desktop_config.json)
+    {
+      "mcpServers": {
+        "pay3": {
+          "command": "npx",
+          "args": ["-y", "@pay3/mcp-server"],
+          "env": {
+            "PAY3_MCP_AUTH_TOKEN": "<your-token-here>",
+            "API_BASE_URL": "https://api.pay3.finance"
+          }
+        }
+      }
+    }
+    ```
+
+    ```json Cursor (settings.json)
+    {
+      "mcpServers": {
+        "pay3": {
+          "command": "npx",
+          "args": ["-y", "@pay3/mcp-server"],
+          "env": {
+            "PAY3_MCP_AUTH_TOKEN": "<your-token-here>",
+            "API_BASE_URL": "https://api.pay3.finance"
+          }
+        }
+      }
+    }
+    ```
+
+    </CodeGroup>
+
+    **Where to put the file**
+
+    <CardGroup cols={2}>
+      <Card title="Claude Desktop" icon="message-bot">
+        Edit `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS, or `%APPDATA%\Claude\claude_desktop_config.json` on Windows. Restart Claude Desktop after saving.
+      </Card>
+      <Card title="Cursor" icon="code">
+        Open **Cursor → Settings → MCP** and paste the `mcpServers` block, or edit `~/.cursor/mcp.json` directly. Reload the window after saving.
+      </Card>
+    </CardGroup>
+
+    <Warning>
+      Treat your MCP auth token like a password. Anyone who has it can initiate payments up to your policy limits. If you believe a token is compromised, go to **Sessions** in the dashboard and click **Revoke** immediately.
+    </Warning>
+
+  </Step>
+
+  <Step title="Make your first AI payment">
+
+    With the MCP server connected, ask your AI assistant to check your balance:
+
+    ```text Prompt
+    What is my USDC balance?
+    ```
+
+    Your AI calls the `get_balance` tool through Pay3 and returns your current USDC balance from the linked smart account. If that works, try a small test transfer:
+
+    ```text Prompt
+    Send 1 USDC to GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOKY3B2WSQHG4W37
+    ```
+
+    Because the amount is below the approval threshold on a CONSERVATIVE policy, Pay3 auto-executes the transaction and returns a Stellar transaction hash as proof. You can verify it instantly on [Stellar Expert](https://stellar.expert/explorer/testnet).
+
+    <Note>
+      If the transfer amount is above your policy's **approval threshold**, Pay3 queues it for manual approval in the dashboard instead of executing immediately. Head to **Sessions** to approve or reject it. Approval requests expire after **2 minutes**.
+    </Note>
+
+  </Step>
+
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## What's next?
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
-</Tip>
+<CardGroup cols={2}>
+  <Card title="How It Works" icon="circle-info" href="/how-it-works">
+    Understand the full payment flow, session key security model, and the three-level execution engine.
+  </Card>
+  <Card title="Policy Reference" icon="shield-check" href="/dashboard/policies">
+    Learn every field available in a custom policy and how the budget accounting works across sessions.
+  </Card>
+  <Card title="MCP Tools" icon="wrench" href="/mcp/tools">
+    Browse all tools your AI can call: `get_balance`, `transfer`, `get_transaction_history`, and more.
+  </Card>
+  <Card title="Session Key Security" icon="key" href="/how-it-works#session-key-security-model">
+    Deep dive into how Pay3 keeps your private key safe while giving your AI delegated permissions.
+  </Card>
+</CardGroup>

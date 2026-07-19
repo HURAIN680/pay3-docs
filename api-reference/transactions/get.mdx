@@ -1,0 +1,138 @@
+---
+title: "GET /api/transactions/:id — Get Transaction Details"
+sidebarTitle: "GET /transactions/:id"
+description: "GET /api/transactions/:id — returns full details for a single transaction including Stellar hash, policy decision, and execution timestamps."
+---
+
+Retrieve the complete record for a single AI-initiated transaction. In addition to the fields returned by the list endpoint, the detail view includes the policy engine's decision (`AUTO_EXECUTE` or `PENDING_APPROVAL`), failure reasons, and precise timestamps for each stage of the submission pipeline. Use this endpoint when investigating a specific transaction — for example, to diagnose a failure, confirm an on-chain settlement, or understand why a transaction was held for approval.
+
+## Endpoint
+
+```
+GET /api/transactions/:id
+```
+
+## Authentication
+
+All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
+
+```
+Authorization: Bearer <token>
+```
+
+## Path parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the transaction to retrieve.
+</ParamField>
+
+## Response
+
+Returns a single transaction object with all available fields.
+
+### Response fields
+
+<ResponseField name="id" type="string" required>
+  Unique UUID for this transaction.
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  The operation type. Currently always `TRANSFER`.
+</ResponseField>
+
+<ResponseField name="asset" type="string" required>
+  Ticker of the asset being sent, e.g. `"USDC"` or `"XLM"`.
+</ResponseField>
+
+<ResponseField name="amount" type="string" required>
+  Transfer amount as a decimal string.
+</ResponseField>
+
+<ResponseField name="recipient" type="string" required>
+  Destination Stellar address (G-address).
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Lifecycle status. One of `PENDING`, `SIGNING`, `SUBMITTING`, `SUCCESS`, `FAILED`, or `EXPIRED`. See [GET /api/transactions](/api-reference/transactions/list) for full status descriptions.
+</ResponseField>
+
+<ResponseField name="policyDecision" type="string" required>
+  The decision reached by the policy engine when the transaction was first evaluated:
+  - `AUTO_EXECUTE` — the transaction was within all limits and was submitted without requiring your approval
+  - `PENDING_APPROVAL` — the transaction exceeded the `manualApprovalThreshold` and was routed to the approval queue
+</ResponseField>
+
+<ResponseField name="stellarHash" type="string">
+  The Stellar transaction hash. Populated once status is `SUCCESS`.
+</ResponseField>
+
+<ResponseField name="rejectionReason" type="string">
+  Human-readable explanation of why the transaction failed, if `status` is `FAILED`. `null` for all other statuses.
+</ResponseField>
+
+<ResponseField name="sessionId" type="string" required>
+  UUID of the AI session that submitted this transaction.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp when the transaction record was created.
+</ResponseField>
+
+<ResponseField name="submittedAt" type="string">
+  ISO 8601 timestamp when the transaction envelope was broadcast to the Stellar network. `null` if not yet submitted.
+</ResponseField>
+
+<ResponseField name="confirmedAt" type="string">
+  ISO 8601 timestamp when the transaction was confirmed on the Stellar network (i.e. when status transitioned to `SUCCESS`). `null` if not yet confirmed.
+</ResponseField>
+
+## Example request
+
+```bash
+curl https://api.pay3.dev/api/transactions/d4e5f6a7-abcd-1234-ef56-789012345678 \
+  -H "Authorization: Bearer <token>"
+```
+
+## Example response — successful transaction
+
+```json
+{
+  "id": "d4e5f6a7-abcd-1234-ef56-789012345678",
+  "action": "TRANSFER",
+  "asset": "USDC",
+  "amount": "42.5000000",
+  "recipient": "GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "status": "SUCCESS",
+  "policyDecision": "AUTO_EXECUTE",
+  "stellarHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+  "rejectionReason": null,
+  "sessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "createdAt": "2025-07-08T12:00:00.000Z",
+  "submittedAt": "2025-07-08T12:00:01.342Z",
+  "confirmedAt": "2025-07-08T12:00:06.891Z"
+}
+```
+
+## Example response — failed transaction
+
+```json
+{
+  "id": "b1a2c3d4-0000-aaaa-bbbb-ccccddddeeee",
+  "action": "TRANSFER",
+  "asset": "USDC",
+  "amount": "999.0000000",
+  "recipient": "GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "status": "FAILED",
+  "policyDecision": "AUTO_EXECUTE",
+  "stellarHash": null,
+  "rejectionReason": "Transaction amount exceeds daily budget remaining for this session.",
+  "sessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "createdAt": "2025-07-08T13:00:00.000Z",
+  "submittedAt": null,
+  "confirmedAt": null
+}
+```
+
+<Note>
+  If `policyDecision` is `PENDING_APPROVAL` and `status` is `PENDING`, the transaction is currently waiting in your [approvals queue](/api-reference/approvals/list). It will expire 2 minutes after the approval request was created if not acted upon.
+</Note>
