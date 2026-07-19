@@ -1,7 +1,7 @@
 ---
 title: "Revoke AI Sessions — Individual and Bulk Revocation"
 sidebarTitle: "Revoke Sessions"
-description: "DELETE /api/ai-sessions/:id revokes a single session. POST /api/ai-sessions/revoke-all immediately revokes all active sessions."
+description: "DELETE /api/ai-sessions/:id revokes a single session. POST /api/ai-sessions/revoke-all immediately revokes all active sessions on your account."
 ---
 
 Pay3 provides two revocation endpoints so you can cut off an AI assistant's spending access immediately — whether you need to retire a single session or perform an emergency shutdown of all active sessions at once. Revoking a session invalidates its MCP auth token and prevents any further transactions from being submitted under it. Any transactions that are already in the `SIGNING` or `SUBMITTING` state at the moment of revocation may still complete.
@@ -32,23 +32,21 @@ Authorization: Bearer <token>
 
 ### Response
 
-```json
-{ "success": true }
-```
+Returns HTTP `204 No Content` on success — no response body is sent.
+
+### Error responses
+
+| Status | Meaning |
+|--------|---------|
+| `400 Bad Request` | The provided `id` is not a valid UUID. |
+| `401 Unauthorized` | Missing or invalid bearer token. |
+| `404 Not Found` | No session exists for the given `id`, or it does not belong to your account. |
 
 ### Example request
 
 ```bash
 curl -X DELETE https://api.pay3.dev/api/ai-sessions/e3b0c442-98fc-1c14-9afb-f4c8996fb924 \
   -H "Authorization: Bearer <token>"
-```
-
-### Example response
-
-```json
-{
-  "success": true
-}
 ```
 
 ---
@@ -73,11 +71,11 @@ Authorization: Bearer <token>
 
 No request body is required.
 
-### Response
+### Response fields
 
-```json
-{ "success": true }
-```
+<ResponseField name="revokedCount" type="number" required>
+  The number of active sessions that were revoked by this call. Returns `0` if no active sessions existed at the time of the request.
+</ResponseField>
 
 ### Example request
 
@@ -90,7 +88,7 @@ curl -X POST https://api.pay3.dev/api/ai-sessions/revoke-all \
 
 ```json
 {
-  "success": true
+  "revokedCount": 3
 }
 ```
 

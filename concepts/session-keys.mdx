@@ -43,7 +43,7 @@ Every session key moves through a predictable sequence of states from creation t
 
 <Steps>
   <Step title="Create">
-    You authorize a new AI session in the Pay3 dashboard. Pay3 generates a fresh Stellar keypair. The private key is immediately encrypted with AES-256-GCM and stored in Pay3's backend — it is never returned to the AI client or displayed in any API response.
+    You authorize a new AI session in the Pay3 dashboard. Pay3 generates a fresh Stellar keypair. The session private key is immediately encrypted and stored in Pay3's backend — it is never returned to the AI client or displayed in any API response.
   </Step>
   <Step title="On-Chain Registration">
     Pay3 calls `add_session()` on your Soroban smart account, writing the session key's public address, expiry timestamp, per-transaction max, and daily max into the contract's persistent storage. Your primary wallet must sign this call.
@@ -62,19 +62,19 @@ The Pay3 smart account vault exposes two functions for session key management. O
 
 ```rust
 // Register a new session key with spending limits and an expiry timestamp
-fn add_session(
+pub fn add_session(
     env: Env,
     session: Address,   // The session key's Stellar public address
     expires_at: u64,    // Unix timestamp — key is dead after this moment
     per_tx_max: i128,   // Max USDC per single transaction (in stroops)
     daily_max: i128,    // Max cumulative USDC per 24-hour window (in stroops)
-)
+) -> Result<(), Error>
 
 // Permanently revoke a session key — sets revoked = true on-chain
-fn revoke_session(
+pub fn revoke_session(
     env: Env,
     session: Address,   // The session key's Stellar public address to revoke
-)
+) -> Result<(), Error>
 ```
 
 Once `revoke_session()` is called, the contract sets `revoked = true` in the session record. Subsequent transfer attempts using that key return `Error::SessionRevoked` and no funds move.
@@ -83,7 +83,7 @@ Once `revoke_session()` is called, the contract sets `revoked = true` in the ses
 
 Each AI assistant you connect — Claude, Cursor, ChatGPT, Gemini, or any other MCP-compatible client — gets its own completely independent session key. Revoking one does not affect the others.
 
-```
+```text
 Your Smart Account Vault
         │
         ├── Claude Session Key
@@ -125,7 +125,7 @@ You have two revocation options in the Pay3 dashboard:
 
 ## Session Key Storage Security
 
-Pay3 encrypts every session key private key with AES-256-GCM before writing it to the database. The plaintext key exists only transiently in memory during transaction signing, and only within Pay3's authorized backend signing service.
+Pay3 encrypts every session key private key before writing it to the database. The plaintext key exists only transiently in memory during transaction signing, and only within Pay3's authorized backend signing service.
 
 Session private keys are never:
 
@@ -135,7 +135,7 @@ Session private keys are never:
 - Exposed to frontend code or the Pay3 dashboard UI
 
 <Note>
-  Session keys are encrypted at rest with AES-256-GCM. Pay3's production architecture is designed to migrate toward Hardware Security Module (HSM) signing, where even the backend application code would never handle raw key material.
+  Session keys are encrypted at rest. Your primary Stellar wallet private key is never stored by Pay3 at any point — only the session key (which is scoped, time-limited, and revocable) is held server-side.
 </Note>
 
 ## Session Key Presets

@@ -1,10 +1,10 @@
 ---
 title: "GET /api/ai-sessions — List Active AI Sessions"
 sidebarTitle: "GET /ai-sessions"
-description: "GET /api/ai-sessions — returns all active AI sessions for your account, including client type, policy, and expiry time."
+description: "GET /api/ai-sessions — returns all currently active AI sessions for your account, including client type, policy summary, smart account, and expiry time."
 ---
 
-Retrieve every AI session associated with your account. Each session represents an authorized AI client — such as Cursor, Claude, or ChatGPT — that has been granted permission to initiate Stellar transactions on your behalf within the bounds of a spending policy. Use this endpoint to audit which AI assistants are currently active and to identify sessions that should be revoked.
+Retrieve every currently active AI session associated with your account. Each session represents an authorized AI client — such as Cursor, Claude, or ChatGPT — that has been granted permission to initiate Stellar transactions on your behalf within the bounds of a spending policy. Use this endpoint to audit which AI assistants are active and to identify sessions that should be revoked.
 
 ## Endpoint
 
@@ -22,7 +22,7 @@ Authorization: Bearer <token>
 
 ## Response
 
-The endpoint returns an array of AI session objects. Sessions with a status of `ACTIVE` are the only ones currently capable of submitting transactions.
+Returns an array of active AI session objects, ordered newest first. Only sessions with `ACTIVE` status and a future expiry time are returned — expired and revoked sessions are excluded. To revoke a session, see [Revoke Sessions](/api-reference/ai-sessions/revoke).
 
 ### Response fields
 
@@ -30,31 +30,49 @@ The endpoint returns an array of AI session objects. Sessions with a status of `
   Unique UUID identifying this AI session.
 </ResponseField>
 
-<ResponseField name="status" type="string" required>
-  Current lifecycle state of the session. One of:
-  - `ACTIVE` — session is valid and can submit transactions
-  - `EXPIRED` — session passed its `expiresAt` timestamp
-  - `REVOKED` — session was manually revoked by you
-</ResponseField>
-
-<ResponseField name="aiClientType" type="string" required>
+<ResponseField name="clientType" type="string" required>
   The AI client associated with this session. One of `CURSOR`, `CLAUDE`, `CHATGPT`, `GEMINI`, or `OTHER`.
 </ResponseField>
 
-<ResponseField name="smartAccountId" type="string" required>
-  UUID of the smart account (Soroban contract) this session is authorized to operate on.
-</ResponseField>
-
-<ResponseField name="policyId" type="string" required>
-  UUID of the spending policy governing transaction limits and allowed assets for this session.
+<ResponseField name="sessionPublicKey" type="string" required>
+  The Ed25519 public key (Stellar G-address) of the ephemeral session keypair registered on-chain. This key signs transactions submitted by the AI on your behalf.
 </ResponseField>
 
 <ResponseField name="expiresAt" type="string" required>
-  ISO 8601 timestamp after which the session automatically transitions to `EXPIRED`.
+  ISO 8601 timestamp after which the session automatically becomes inactive.
 </ResponseField>
 
 <ResponseField name="createdAt" type="string" required>
   ISO 8601 timestamp when the session was created.
+</ResponseField>
+
+<ResponseField name="policy" type="object" required>
+  Summary of the spending policy governing this session's transaction limits.
+
+  <Expandable title="policy fields">
+    <ResponseField name="id" type="string" required>
+      UUID of the spending policy.
+    </ResponseField>
+    <ResponseField name="name" type="string" required>
+      Display name of the policy.
+    </ResponseField>
+    <ResponseField name="preset" type="string" required>
+      Policy preset. One of `CONSERVATIVE`, `BALANCED`, `DEFI`, or `CUSTOM`.
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="smartAccount" type="object" required>
+  The smart account (Soroban contract) this session is authorized to operate on.
+
+  <Expandable title="smartAccount fields">
+    <ResponseField name="id" type="string" required>
+      UUID of the smart account record.
+    </ResponseField>
+    <ResponseField name="contractId" type="string" required>
+      On-chain Soroban contract ID (C-address).
+    </ResponseField>
+  </Expandable>
 </ResponseField>
 
 ## Example request
@@ -70,25 +88,39 @@ curl https://api.pay3.dev/api/ai-sessions \
 [
   {
     "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
-    "status": "ACTIVE",
-    "aiClientType": "CURSOR",
-    "smartAccountId": "a1b2c3d4-1234-5678-abcd-ef0123456789",
-    "policyId": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
+    "clientType": "CURSOR",
+    "sessionPublicKey": "GDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     "expiresAt": "2025-07-15T14:30:00.000Z",
-    "createdAt": "2025-07-08T14:30:00.000Z"
+    "createdAt": "2025-07-08T14:30:00.000Z",
+    "policy": {
+      "id": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
+      "name": "Balanced Preset",
+      "preset": "BALANCED"
+    },
+    "smartAccount": {
+      "id": "a1b2c3d4-1234-5678-abcd-ef0123456789",
+      "contractId": "CCHD3XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    }
   },
   {
     "id": "7c9e6679-7425-40de-944b-e07fc1f90ae7",
-    "status": "REVOKED",
-    "aiClientType": "CLAUDE",
-    "smartAccountId": "a1b2c3d4-1234-5678-abcd-ef0123456789",
-    "policyId": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
-    "expiresAt": "2025-07-10T09:00:00.000Z",
-    "createdAt": "2025-07-03T09:00:00.000Z"
+    "clientType": "CLAUDE",
+    "sessionPublicKey": "GEYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
+    "expiresAt": "2025-07-15T09:00:00.000Z",
+    "createdAt": "2025-07-08T09:00:00.000Z",
+    "policy": {
+      "id": "c2d3e4f5-0000-1111-2222-333344445555",
+      "name": "My Custom Policy",
+      "preset": "CUSTOM"
+    },
+    "smartAccount": {
+      "id": "a1b2c3d4-1234-5678-abcd-ef0123456789",
+      "contractId": "CCHD3XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+    }
   }
 ]
 ```
 
 <Note>
-  This endpoint returns sessions of all statuses — `ACTIVE`, `EXPIRED`, and `REVOKED` — so you can maintain a full audit history. Filter client-side on `status === "ACTIVE"` to see only sessions that can currently transact.
+  This endpoint returns **only active sessions** — those that are currently valid and have not yet expired. To revoke one or all sessions, see [Revoke Sessions](/api-reference/ai-sessions/revoke). Revoked and expired sessions are not returned here, but their associated transactions remain visible in [GET /api/transactions](/api-reference/transactions/list).
 </Note>

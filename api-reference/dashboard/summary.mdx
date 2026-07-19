@@ -1,13 +1,13 @@
 ---
 title: "GET /api/dashboard — Dashboard Summary Data"
 sidebarTitle: "GET /dashboard"
-description: "GET /api/dashboard — returns a unified summary of wallet balances, active sessions, pending approvals, policies, and monthly usage."
+description: "GET /api/dashboard — returns a unified summary of wallet balances, active sessions, pending approvals, policies, and monthly usage in one request."
 ---
 
-The dashboard endpoint is your single entry point for building a complete account overview. One authenticated request returns seven data points in parallel — wallet balances, recent transactions, active AI sessions, pending approval requests, spending policies, monthly usage records, and per-session daily budget consumption. Rather than making seven separate API calls and stitching the results together on the client, you can use this endpoint to populate an entire dashboard UI in a single round trip.
+The dashboard endpoint is your single entry point for building a complete account overview. One authenticated request returns seven data points — wallet balances, recent transactions, active AI sessions, pending approval requests, spending policies, monthly usage records, and per-session daily budget consumption. Rather than making seven separate API calls and stitching the results together on the client, you can use this endpoint to populate an entire dashboard UI in a single round trip.
 
 <Tip>
-  This endpoint is purpose-built for dashboard UIs. Because the server fetches all seven data sources concurrently with `Promise.all`, the total response time is bounded by the slowest individual source — not the sum of all seven. Use it wherever you need a full account snapshot and want to minimize network overhead.
+  This endpoint is purpose-built for dashboard UIs. All seven data sources are fetched concurrently on the server, so the total response time is bounded by the slowest individual source — not the sum of all seven. Use it wherever you need a full account snapshot and want to minimize network overhead.
 </Tip>
 
 ## Endpoint
@@ -41,7 +41,7 @@ Authorization: Bearer <token>
           Stellar G-address (public key) for this wallet.
         </ResponseField>
         <ResponseField name="network" type="string" required>
-          Stellar network this wallet operates on. One of `MAINNET` or `TESTNET`.
+          Stellar network this wallet operates on. One of `TESTNET` or `PUBLIC`.
         </ResponseField>
         <ResponseField name="isPrimary" type="boolean" required>
           Whether this is the account's designated primary wallet.
@@ -93,23 +93,26 @@ Authorization: Bearer <token>
     <ResponseField name="id" type="string" required>
       UUID of the transaction record.
     </ResponseField>
-    <ResponseField name="status" type="string" required>
-      Transaction lifecycle status. One of `PENDING`, `APPROVED`, `SUBMITTED`, `CONFIRMED`, or `FAILED`.
+    <ResponseField name="action" type="string" required>
+      Operation type. One of `TRANSFER`, `CHECK_BALANCE`, or `VIEW_TRANSACTION_HISTORY`.
     </ResponseField>
-    <ResponseField name="amount" type="string" required>
-      Transfer amount as a decimal string.
+    <ResponseField name="status" type="string" required>
+      Transaction lifecycle status. One of `CREATED`, `VALIDATING`, `AUTO_APPROVED`, `PENDING_APPROVAL`, `APPROVED`, `SIGNING`, `SUBMITTING`, `SUCCESS`, `FAILED`, `REJECTED`, `EXPIRED`, or `CANCELLED`.
+    </ResponseField>
+    <ResponseField name="amount" type="string">
+      Transfer amount as a decimal string. `null` for non-transfer actions.
     </ResponseField>
     <ResponseField name="asset" type="string" required>
-      Asset code transferred (e.g. `"USDC"`).
+      Asset code (e.g. `"USDC"`).
     </ResponseField>
-    <ResponseField name="destinationAddress" type="string" required>
-      Stellar G-address of the recipient.
+    <ResponseField name="recipientAddress" type="string">
+      Resolved Stellar G-address of the recipient. `null` for non-transfer actions.
     </ResponseField>
-    <ResponseField name="stellarTxHash" type="string">
-      On-chain transaction hash. Present only after the transaction has been submitted to the Stellar network.
+    <ResponseField name="stellarTransactionHash" type="string">
+      On-chain transaction hash. Present only after the transaction has reached `SUCCESS`.
     </ResponseField>
     <ResponseField name="aiSession" type="object">
-      The AI session that initiated this transaction, if applicable.
+      The AI session that initiated this transaction.
 
       <Expandable title="aiSession fields">
         <ResponseField name="id" type="string" required>
@@ -121,7 +124,7 @@ Authorization: Bearer <token>
       </Expandable>
     </ResponseField>
     <ResponseField name="contact" type="object">
-      The resolved contact for this transaction's recipient, if the address matched a saved contact.
+      The resolved contact for this transaction's recipient, if the address matched a saved contact. `null` if no match was found.
 
       <Expandable title="contact fields">
         <ResponseField name="id" type="string" required>
@@ -189,17 +192,20 @@ Authorization: Bearer <token>
         <ResponseField name="id" type="string" required>
           UUID of the transaction.
         </ResponseField>
+        <ResponseField name="action" type="string" required>
+          Always `TRANSFER` for transactions that require approval.
+        </ResponseField>
         <ResponseField name="amount" type="string" required>
           Requested transfer amount as a decimal string.
         </ResponseField>
         <ResponseField name="asset" type="string" required>
           Asset code to be transferred.
         </ResponseField>
-        <ResponseField name="destinationAddress" type="string" required>
+        <ResponseField name="recipientAddress" type="string" required>
           Recipient's Stellar G-address.
         </ResponseField>
         <ResponseField name="status" type="string" required>
-          Transaction status — `PENDING` for all entries in this context.
+          Transaction status — `PENDING_APPROVAL` for all entries in this context.
         </ResponseField>
       </Expandable>
     </ResponseField>
@@ -237,6 +243,9 @@ Authorization: Bearer <token>
     <ResponseField name="dailyBudget" type="string" required>
       Maximum total spend per day across all sessions using this policy, as a decimal string (USD).
     </ResponseField>
+    <ResponseField name="monthlyBudget" type="string">
+      Monthly spend cap in USD as a decimal string, or `null` if no monthly limit is set.
+    </ResponseField>
     <ResponseField name="perTransactionMax" type="string" required>
       Maximum amount for a single transaction, as a decimal string (USD).
     </ResponseField>
@@ -255,14 +264,17 @@ Authorization: Bearer <token>
     <ResponseField name="allowedRecipientIds" type="array" required>
       List of contact UUIDs that sessions under this policy may send to. An empty array means no recipient restriction is enforced.
     </ResponseField>
-    <ResponseField name="monthlyBudget" type="string">
-      Optional monthly spend cap in USD. `null` if no monthly limit is set.
+    <ResponseField name="rateLimitPerMinute" type="number">
+      Maximum transactions per minute. `null` if no rate limit is set.
     </ResponseField>
     <ResponseField name="isActive" type="boolean" required>
       Whether this policy is currently active. Only active policies appear in this array.
     </ResponseField>
     <ResponseField name="createdAt" type="string" required>
       ISO 8601 timestamp when the policy was created.
+    </ResponseField>
+    <ResponseField name="updatedAt" type="string" required>
+      ISO 8601 timestamp when the policy was last modified.
     </ResponseField>
   </Expandable>
 </ResponseField>
@@ -392,7 +404,7 @@ curl https://api.pay3.dev/api/dashboard \
     "wallet": {
       "id": "w1a2b3c4-0001-4abc-8def-000000000001",
       "publicAddress": "GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOKY3B2WSQHG4W37",
-      "network": "MAINNET",
+      "network": "PUBLIC",
       "isPrimary": true
     },
     "balances": [
@@ -411,7 +423,7 @@ curl https://api.pay3.dev/api/dashboard \
       {
         "id": "sa1a2b3c4-0001-4abc-8def-000000000010",
         "contractId": "CCJZ5DGASBWQXR5MPFCJXMBI5HONGSDJFQNZOQQVLRBTKMJZFJBTMKYT",
-        "network": "MAINNET",
+        "network": "PUBLIC",
         "createdAt": "2025-05-01T09:00:00.000Z"
       }
     ]
@@ -419,11 +431,12 @@ curl https://api.pay3.dev/api/dashboard \
   "recentTransactions": [
     {
       "id": "tx1a2b3c4-0001-4abc-8def-000000000020",
-      "status": "CONFIRMED",
+      "action": "TRANSFER",
+      "status": "SUCCESS",
       "amount": "50.00",
       "asset": "USDC",
-      "destinationAddress": "GBVFEQKQ5VGHIH4CVXOL5TXIVMS6OJQMQHM5LLNTV3AAJHID5OFWKM4",
-      "stellarTxHash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+      "recipientAddress": "GBVFEQKQ5VGHIH4CVXOL5TXIVMS6OJQMQHM5LLNTV3AAJHID5OFWKM4",
+      "stellarTransactionHash": "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
       "aiSession": {
         "id": "sess1a2b3c4-0001-4abc-8def-000000000030",
         "clientType": "CURSOR"
@@ -451,13 +464,14 @@ curl https://api.pay3.dev/api/dashboard \
       "id": "apr1a2b3c4-0001-4abc-8def-000000000050",
       "status": "PENDING",
       "transactionId": "tx1a2b3c4-0002-4abc-8def-000000000021",
-      "expiresAt": "2025-07-09T14:30:00.000Z",
+      "expiresAt": "2025-07-09T14:32:00.000Z",
       "transaction": {
         "id": "tx1a2b3c4-0002-4abc-8def-000000000021",
+        "action": "TRANSFER",
         "amount": "200.00",
         "asset": "USDC",
-        "destinationAddress": "GBVFEQKQ5VGHIH4CVXOL5TXIVMS6OJQMQHM5LLNTV3AAJHID5OFWKM4",
-        "status": "PENDING"
+        "recipientAddress": "GBVFEQKQ5VGHIH4CVXOL5TXIVMS6OJQMQHM5LLNTV3AAJHID5OFWKM4",
+        "status": "PENDING_APPROVAL"
       },
       "aiSession": {
         "id": "sess1a2b3c4-0001-4abc-8def-000000000030",
@@ -471,9 +485,10 @@ curl https://api.pay3.dev/api/dashboard \
       "id": "pol1a2b3c4-0001-4abc-8def-000000000040",
       "name": "Daily Ops",
       "preset": "BALANCED",
-      "dailyBudget": "500",
-      "perTransactionMax": "100",
-      "manualApprovalThreshold": "250",
+      "dailyBudget": "500.0000000",
+      "monthlyBudget": null,
+      "perTransactionMax": "100.0000000",
+      "manualApprovalThreshold": "250.0000000",
       "sessionDurationHours": 168,
       "allowedAssets": ["USDC", "XLM"],
       "allowedActions": [
@@ -484,9 +499,10 @@ curl https://api.pay3.dev/api/dashboard \
       "allowedRecipientIds": [
         "c1a2b3d4-0001-4abc-8def-000000000001"
       ],
-      "monthlyBudget": null,
+      "rateLimitPerMinute": null,
       "isActive": true,
-      "createdAt": "2025-05-10T10:00:00.000Z"
+      "createdAt": "2025-05-10T10:00:00.000Z",
+      "updatedAt": "2025-05-10T10:00:00.000Z"
     }
   ],
   "monthlyUsage": {
@@ -516,7 +532,7 @@ curl https://api.pay3.dev/api/dashboard \
         "clientType": "CURSOR",
         "smartAccountId": "sa1a2b3c4-0001-4abc-8def-000000000010",
         "policy": {
-          "dailyBudget": "500",
+          "dailyBudget": "500.0000000",
           "monthlyBudget": null,
           "allowedAssets": ["USDC", "XLM"]
         },
@@ -537,7 +553,3 @@ curl https://api.pay3.dev/api/dashboard \
   }
 }
 ```
-
-<Note>
-  All seven data sources — wallet, transactions, sessions, approvals, policies, monthly usage, and budget usage — are fetched concurrently on the server via `Promise.all`. The endpoint's latency is determined by whichever source takes longest, not their combined total.
-</Note>

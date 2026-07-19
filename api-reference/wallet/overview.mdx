@@ -1,7 +1,7 @@
 ---
-title: "GET /api/wallet/overview — Wallet Balances and Summary"
-sidebarTitle: "GET /wallet/overview"
-description: "GET /api/wallet/overview — returns your Stellar wallet's asset balances across XLM and USDC on testnet or mainnet."
+title: "Get Your Stellar Wallet Asset Balances — Pay3 Wallet"
+sidebarTitle: "Wallet Overview"
+description: "Retrieve your Stellar wallet metadata, live asset balances, and linked smart accounts in a single call. Ideal for dashboards and pre-payment checks."
 ---
 
 The wallet overview endpoint gives you a complete snapshot of your Pay3 wallet. It returns your Stellar account's on-chain asset balances — including native XLM and any issued assets such as USDC — fetched live from the Stellar network, along with a summary of the smart accounts you have linked to this wallet. Use it to power dashboards, balance displays, or pre-flight checks before initiating payments.
@@ -16,65 +16,81 @@ Authentication is **required**. Include either the `pay3_session` cookie or an `
 
 ## Response
 
-A successful `200 OK` response returns your wallet metadata, live balances, and linked smart accounts.
+All Pay3 API responses are wrapped in a standard envelope:
 
-<ResponseField name="wallet" type="object">
-  Metadata about your Pay3 wallet record.
+```json
+{
+  "data": { ... },
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
+}
+```
 
-  <Expandable title="wallet fields">
-    <ResponseField name="wallet.id" type="string">
-      Pay3 internal wallet record ID.
+A successful `200 OK` response returns your wallet metadata, live balances, and linked smart accounts inside `data`.
+
+<ResponseField name="data" type="object">
+  The wallet overview payload.
+
+  <Expandable title="data fields" defaultOpen>
+    <ResponseField name="data.wallet" type="object">
+      Metadata about your Pay3 wallet record.
+
+      <Expandable title="wallet fields">
+        <ResponseField name="data.wallet.id" type="string">
+          Pay3 internal wallet record ID.
+        </ResponseField>
+        <ResponseField name="data.wallet.publicAddress" type="string">
+          Your Stellar public key (`G...`).
+        </ResponseField>
+        <ResponseField name="data.wallet.network" type="string">
+          The Stellar network — `TESTNET` or `PUBLIC`.
+        </ResponseField>
+        <ResponseField name="data.wallet.isPrimary" type="boolean">
+          Whether this is your primary wallet for the authenticated user account.
+        </ResponseField>
+      </Expandable>
     </ResponseField>
-    <ResponseField name="wallet.publicAddress" type="string">
-      Your Stellar public key (`G...`).
+
+    <ResponseField name="data.balances" type="array">
+      An array of asset balance objects fetched live from Stellar Horizon.
+
+      <Expandable title="balance item fields">
+        <ResponseField name="data.balances[].asset" type="string">
+          The asset identifier. For native lumens this is `"XLM"`. For issued
+          assets this is `"<CODE>:<ISSUER_ADDRESS>"` — for example,
+          `"USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"`.
+        </ResponseField>
+        <ResponseField name="data.balances[].balance" type="string">
+          The current balance as a decimal string (e.g., `"100.0000000"`).
+          Stellar balances have 7 decimal places of precision.
+        </ResponseField>
+      </Expandable>
     </ResponseField>
-    <ResponseField name="wallet.network" type="string">
-      The Stellar network — `TESTNET` or `MAINNET`.
-    </ResponseField>
-    <ResponseField name="wallet.isPrimary" type="boolean">
-      Whether this is your primary wallet for the authenticated user account.
+
+    <ResponseField name="data.smartAccounts" type="array">
+      Smart account contracts linked to this wallet. See
+      [`GET /api/smart-accounts`](/api-reference/smart-accounts/list) for full
+      detail on each account.
+
+      <Expandable title="smart account item fields">
+        <ResponseField name="data.smartAccounts[].id" type="string">
+          Pay3 internal smart account record ID.
+        </ResponseField>
+        <ResponseField name="data.smartAccounts[].contractId" type="string">
+          The Soroban contract address (`C...`).
+        </ResponseField>
+        <ResponseField name="data.smartAccounts[].network" type="string">
+          Network the contract is deployed on — `TESTNET` or `PUBLIC`.
+        </ResponseField>
+        <ResponseField name="data.smartAccounts[].createdAt" type="string">
+          ISO 8601 timestamp of when this smart account was linked.
+        </ResponseField>
+      </Expandable>
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-<ResponseField name="balances" type="array">
-  An array of asset balance objects fetched live from Stellar Horizon.
-
-  <Expandable title="balance item fields">
-    <ResponseField name="balances[].asset" type="string">
-      The asset code — `XLM` for native lumens, or a 1–12 character code for
-      issued assets (e.g., `USDC`).
-    </ResponseField>
-    <ResponseField name="balances[].balance" type="string">
-      The current balance as a decimal string (e.g., `"100.0000000"`).
-      Stellar balances have 7 decimal places of precision.
-    </ResponseField>
-    <ResponseField name="balances[].issuer" type="string">
-      The Stellar public key of the asset issuer. Present for all non-native
-      assets; omitted for `XLM`.
-    </ResponseField>
-  </Expandable>
-</ResponseField>
-
-<ResponseField name="smartAccounts" type="array">
-  Smart account contracts linked to this wallet. See
-  [`GET /api/smart-accounts`](/api-reference/smart-accounts/list) for full
-  detail on each account.
-
-  <Expandable title="smart account item fields">
-    <ResponseField name="smartAccounts[].id" type="string">
-      Pay3 internal smart account record ID.
-    </ResponseField>
-    <ResponseField name="smartAccounts[].contractId" type="string">
-      The Soroban contract address (`C...`).
-    </ResponseField>
-    <ResponseField name="smartAccounts[].network" type="string">
-      Network the contract is deployed on — `TESTNET` or `MAINNET`.
-    </ResponseField>
-    <ResponseField name="smartAccounts[].createdAt" type="string">
-      ISO 8601 timestamp of when this smart account was linked.
-    </ResponseField>
-  </Expandable>
+<ResponseField name="requestId" type="string">
+  A unique identifier for this API request, useful for support and debugging.
 </ResponseField>
 
 <Note>
@@ -89,7 +105,7 @@ A successful `200 OK` response returns your wallet metadata, live balances, and 
 
 ### Request
 
-```bash curl
+```bash
 curl --request GET \
   --url https://api.pay3.dev/api/wallet/overview \
   --header 'Authorization: Bearer your-session-token-here'
@@ -99,31 +115,33 @@ curl --request GET \
 
 ```json
 {
-  "wallet": {
-    "id": "wal_01hx2q3r4s5t6u7v8w9x0y1z",
-    "publicAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
-    "network": "TESTNET",
-    "isPrimary": true
-  },
-  "balances": [
-    {
-      "asset": "XLM",
-      "balance": "9872.3401200"
-    },
-    {
-      "asset": "USDC",
-      "balance": "250.0000000",
-      "issuer": "GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5"
-    }
-  ],
-  "smartAccounts": [
-    {
-      "id": "sa_01hx2q3r4s5t6u7v8w9x0y1z",
-      "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE",
+  "data": {
+    "wallet": {
+      "id": "f0e1d2c3-b4a5-6789-0123-456789abcdef",
+      "publicAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
       "network": "TESTNET",
-      "createdAt": "2024-11-01T10:30:00.000Z"
-    }
-  ]
+      "isPrimary": true
+    },
+    "balances": [
+      {
+        "asset": "XLM",
+        "balance": "9872.3401200"
+      },
+      {
+        "asset": "USDC:GBBD47IF6LWK7P7MDEVSCWR7DPUWV3NY3DTQEVFL4NAT4AQH3ZLLFLA5",
+        "balance": "250.0000000"
+      }
+    ],
+    "smartAccounts": [
+      {
+        "id": "e7f8a9b0-c1d2-3456-7890-abcdef123456",
+        "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE",
+        "network": "TESTNET",
+        "createdAt": "2024-11-01T10:30:00.000Z"
+      }
+    ]
+  },
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
 }
 ```
 

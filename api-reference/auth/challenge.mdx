@@ -1,10 +1,10 @@
 ---
-title: "POST /api/auth/challenge — Request a Sign-In Challenge"
-sidebarTitle: "POST /auth/challenge"
-description: "POST /api/auth/challenge — generates a nonce-based sign-in challenge message for a Stellar wallet address. Returns the message to sign."
+title: "Request a Sign-In Challenge for Your Stellar Wallet"
+sidebarTitle: "Get Challenge"
+description: "Generate a one-time sign-in challenge for a Stellar wallet address. Sign the returned message with your wallet, then submit the signature to verify."
 ---
 
-The challenge endpoint is the **first step of wallet-based authentication** on Pay3. You send your Stellar public key and receive a one-time, nonce-bound message that you must sign with your wallet's private key using Freighter (or any compatible Ed25519 signer). The signed message is then submitted to [`POST /api/auth/verify`](/api-reference/auth/verify) to complete sign-in and establish a session.
+The challenge endpoint is the **first step of wallet-based authentication** on Pay3. Send your Stellar public key and receive a one-time, nonce-bound message that you must sign with your wallet's private key using Freighter (or any compatible Ed25519 signer). The signed message is then submitted to [`POST /api/auth/verify`](/api-reference/auth/verify) to complete sign-in and establish a session.
 
 ## Endpoint
 
@@ -27,44 +27,63 @@ No authentication is required to call this endpoint.
 
 ## Response
 
-A successful `200 OK` response returns a challenge object. Pass the `message` field to your wallet signer, then send the resulting signature along with the `challengeId` to the verify endpoint.
+All Pay3 API responses are wrapped in a standard envelope:
 
-<ResponseField name="challengeId" type="string">
-  Unique identifier for this challenge. Include this value in the body of your
-  subsequent `POST /api/auth/verify` request.
+```json
+{
+  "data": { ... },
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
+}
+```
+
+A successful `200 OK` response returns a challenge object inside `data`. Pass the `message` field to your wallet signer, then send the resulting signature along with the `nonce` to the verify endpoint.
+
+<ResponseField name="data" type="object">
+  The challenge payload.
+
+  <Expandable title="data fields" defaultOpen>
+    <ResponseField name="data.challengeId" type="string">
+      Unique identifier for this challenge. Returned for informational purposes;
+      you do not need to include this in your verify request.
+    </ResponseField>
+
+    <ResponseField name="data.nonce" type="string">
+      The randomly-generated nonce embedded in the challenge message. Include
+      this value in the body of your subsequent `POST /api/auth/verify` request.
+    </ResponseField>
+
+    <ResponseField name="data.message" type="string">
+      The plain-text challenge message that your wallet must sign. Pass this
+      string directly to `freighter.signMessage()` or an equivalent signer.
+
+      The message follows this structure:
+      ```
+      Pay3 wants you to sign in with your Stellar wallet.
+
+      Wallet: <walletAddress>
+      Network: <testnet|public>
+      Nonce: <nonce>
+      Issued At: <ISO 8601 timestamp>
+      Expiration: <ISO 8601 timestamp>
+      ```
+    </ResponseField>
+
+    <ResponseField name="data.walletAddress" type="string">
+      The normalized Stellar public key echoed back after validation.
+    </ResponseField>
+
+    <ResponseField name="data.network" type="string">
+      The Stellar network this challenge was issued for — either `testnet` or `public`.
+    </ResponseField>
+
+    <ResponseField name="data.expiresAt" type="string">
+      ISO 8601 timestamp indicating when this challenge expires.
+    </ResponseField>
+  </Expandable>
 </ResponseField>
 
-<ResponseField name="nonce" type="string">
-  The randomly-generated nonce embedded in the challenge message. Used
-  server-side to look up and validate the challenge during verification.
-</ResponseField>
-
-<ResponseField name="message" type="string">
-  The plain-text challenge message that your wallet must sign. This string is
-  what you pass directly to `freighter.signMessage()` or an equivalent signer.
-
-  The message follows this structure:
-  ```
-  Pay3 wants you to sign in with your Stellar wallet.
-
-  Wallet: <walletAddress>
-  Network: <testnet|public>
-  Nonce: <nonce>
-  Issued At: <ISO 8601 timestamp>
-  Expiration: <ISO 8601 timestamp>
-  ```
-</ResponseField>
-
-<ResponseField name="walletAddress" type="string">
-  The normalized Stellar public key echoed back after validation.
-</ResponseField>
-
-<ResponseField name="network" type="string">
-  The Stellar network this challenge was issued for — either `testnet` or `public`.
-</ResponseField>
-
-<ResponseField name="expiresAt" type="string">
-  ISO 8601 timestamp indicating when this challenge expires.
+<ResponseField name="requestId" type="string">
+  A unique identifier for this API request, useful for support and debugging.
 </ResponseField>
 
 <Note>
@@ -77,7 +96,7 @@ A successful `200 OK` response returns a challenge object. Pass the `message` fi
 
 ### Request
 
-```bash curl
+```bash
 curl --request POST \
   --url https://api.pay3.dev/api/auth/challenge \
   --header 'Content-Type: application/json' \
@@ -86,24 +105,19 @@ curl --request POST \
   }'
 ```
 
-### Request Body
-
-```json
-{
-  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R"
-}
-```
-
 ### Response Body
 
 ```json
 {
-  "challengeId": "clx4w2k0f0000qwer8tyu1234",
-  "nonce": "8f3a92b1c4e07d56af2190be",
-  "message": "Pay3 wants you to sign in with your Stellar wallet.\n\nWallet: GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R\nNetwork: testnet\nNonce: 8f3a92b1c4e07d56af2190be\nIssued At: 2024-11-01T12:00:00.000Z\nExpiration: 2024-11-01T12:05:00.000Z",
-  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
-  "network": "testnet",
-  "expiresAt": "2024-11-01T12:05:00.000Z"
+  "data": {
+    "challengeId": "a3f8c2d1-04b5-4e6f-9a7b-8c0d1e2f3a4b",
+    "nonce": "8f3a92b1c4e07d56af2190be",
+    "message": "Pay3 wants you to sign in with your Stellar wallet.\n\nWallet: GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R\nNetwork: testnet\nNonce: 8f3a92b1c4e07d56af2190be\nIssued At: 2024-11-01T12:00:00.000Z\nExpiration: 2024-11-01T12:05:00.000Z",
+    "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
+    "network": "testnet",
+    "expiresAt": "2024-11-01T12:05:00.000Z"
+  },
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
 }
 ```
 
@@ -114,4 +128,4 @@ curl --request POST \
 | HTTP Status | Description |
 |---|---|
 | `400 Bad Request` | `walletAddress` is missing or not a valid Stellar public key. |
-| `422 Unprocessable Entity` | Address format is syntactically invalid (not a G... key). |
+| `422 Unprocessable Entity` | Address format is syntactically invalid (not a `G...` key). |

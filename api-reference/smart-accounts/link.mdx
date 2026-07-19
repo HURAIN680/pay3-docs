@@ -1,7 +1,7 @@
 ---
-title: "POST /api/smart-accounts — Link a Soroban Smart Account"
-sidebarTitle: "POST /smart-accounts"
-description: "POST /api/smart-accounts — links a deployed Soroban smart account contract to your Pay3 account so AI sessions can use it as a spending vault."
+title: "Link a Soroban Smart Account — Pay3 Smart Accounts"
+sidebarTitle: "Link Account"
+description: "Register a deployed Soroban contract with your Pay3 account so AI sessions can use it as a spending vault. Returns the record and on-chain references."
 ---
 
 Before an AI session can make on-chain payments on your behalf, you must link a deployed Soroban smart account contract to your Pay3 account. This endpoint creates that association — it does **not** deploy the contract itself, but records your contract's address so Pay3 AI sessions can reference it as a spending vault and apply your spending policies. If the contract address has already been linked by the same user, the record is updated rather than duplicated.
@@ -36,40 +36,74 @@ Authentication is **required**. Include either the `pay3_session` cookie or an `
 
 ## Response
 
-A successful `201 Created` response returns the newly created (or updated) smart account record, along with on-chain configuration hints.
+All Pay3 API responses are wrapped in a standard envelope:
 
-<ResponseField name="id" type="string">
-  Pay3 internal smart account record ID.
-</ResponseField>
+```json
+{
+  "data": { ... },
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
+}
+```
 
-<ResponseField name="contractId" type="string">
-  The Soroban contract address, normalized to uppercase.
-</ResponseField>
+A successful `201 Created` response returns the newly created (or updated) smart account record, along with on-chain reference values, inside `data`.
 
-<ResponseField name="network" type="string">
-  The Stellar network this contract was registered under — `TESTNET` or `MAINNET`,
-  derived from your current session's network.
-</ResponseField>
+<ResponseField name="data" type="object">
+  The linked smart account record.
 
-<ResponseField name="createdAt" type="string">
-  ISO 8601 timestamp of when this smart account was linked.
-</ResponseField>
-
-<ResponseField name="onChain" type="object">
-  Helpful on-chain reference values for this network environment.
-
-  <Expandable title="onChain fields">
-    <ResponseField name="onChain.usdcSacContractId" type="string">
-      The USDC Stellar Asset Contract (SAC) address for this network. Use this
-      as the `usdc_token` argument when calling `initialize()` on your contract.
+  <Expandable title="data fields" defaultOpen>
+    <ResponseField name="data.id" type="string">
+      Pay3 internal smart account record ID (UUID).
     </ResponseField>
-    <ResponseField name="onChain.templateContractId" type="string">
-      The Pay3 reference smart account template contract ID used during deployment.
+
+    <ResponseField name="data.userId" type="string">
+      The Pay3 user ID that owns this smart account record.
     </ResponseField>
-    <ResponseField name="onChain.initializeHint" type="string">
-      A human-readable reminder of the initialization sequence for a new contract.
+
+    <ResponseField name="data.walletId" type="string">
+      The Pay3 wallet record ID this smart account is associated with.
+    </ResponseField>
+
+    <ResponseField name="data.contractId" type="string">
+      The Soroban contract address, normalized to uppercase.
+    </ResponseField>
+
+    <ResponseField name="data.network" type="string">
+      The Stellar network this contract was registered under — `TESTNET` or
+      `PUBLIC`, derived from your current session's network.
+    </ResponseField>
+
+    <ResponseField name="data.createdAt" type="string">
+      ISO 8601 timestamp of when this smart account was first linked.
+    </ResponseField>
+
+    <ResponseField name="data.updatedAt" type="string">
+      ISO 8601 timestamp of when this smart account record was last updated.
+    </ResponseField>
+
+    <ResponseField name="data.onChain" type="object">
+      Helpful on-chain reference values for this network environment.
+
+      <Expandable title="onChain fields">
+        <ResponseField name="data.onChain.usdcSacContractId" type="string">
+          The USDC Stellar Asset Contract (SAC) address for this network. Use
+          this as the `usdc_token` argument when calling `initialize()` on your
+          contract.
+        </ResponseField>
+        <ResponseField name="data.onChain.templateContractId" type="string">
+          The Pay3 reference smart account template contract ID used during
+          deployment.
+        </ResponseField>
+        <ResponseField name="data.onChain.initializeHint" type="string">
+          A human-readable reminder of the initialization sequence for a new
+          contract.
+        </ResponseField>
+      </Expandable>
     </ResponseField>
   </Expandable>
+</ResponseField>
+
+<ResponseField name="requestId" type="string">
+  A unique identifier for this API request, useful for support and debugging.
 </ResponseField>
 
 ---
@@ -78,7 +112,7 @@ A successful `201 Created` response returns the newly created (or updated) smart
 
 ### Request
 
-```bash curl
+```bash
 curl --request POST \
   --url https://api.pay3.dev/api/smart-accounts \
   --header 'Authorization: Bearer your-session-token-here' \
@@ -88,27 +122,25 @@ curl --request POST \
   }'
 ```
 
-### Request Body
-
-```json
-{
-  "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE"
-}
-```
-
 ### Response Body
 
 ```json
 {
-  "id": "sa_01hx2q3r4s5t6u7v8w9x0y1z",
-  "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE",
-  "network": "TESTNET",
-  "createdAt": "2024-11-01T10:30:00.000Z",
-  "onChain": {
-    "usdcSacContractId": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
-    "templateContractId": "CCWAMYJME4H5CKG7OLXGC2T4M7FQGKWH3Y7TMKHBRVNLG6ZQPQHXJDE",
-    "initializeHint": "Deploy contracts/smart-account, then invoke initialize(owner, usdc_token) before deposit/add_session."
-  }
+  "data": {
+    "id": "e7f8a9b0-c1d2-3456-7890-abcdef123456",
+    "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "walletId": "f0e1d2c3-b4a5-6789-0123-456789abcdef",
+    "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE",
+    "network": "TESTNET",
+    "createdAt": "2024-11-01T10:30:00.000Z",
+    "updatedAt": "2024-11-01T10:30:00.000Z",
+    "onChain": {
+      "usdcSacContractId": "CBIELTK6YBZJU5UP2WWQEUCYKLPU6AUNZ2BQ4WWFEIE3USCIHMXQDAMA",
+      "templateContractId": "CCWAMYJME4H5CKG7OLXGC2T4M7FQGKWH3Y7TMKHBRVNLG6ZQPQHXJDE",
+      "initializeHint": "Deploy contracts/smart-account, then invoke initialize(owner, usdc_token) before deposit/add_session."
+    }
+  },
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
 }
 ```
 
@@ -118,6 +150,6 @@ curl --request POST \
 
 | HTTP Status | Description |
 |---|---|
-| `400 Bad Request` | `contractId` is missing, empty, or not a valid 56-character Stellar address. |
+| `400 Bad Request` | `contractId` is missing, empty, or not a valid 56-character Stellar address beginning with `C`. |
 | `401 Unauthorized` | Missing or invalid session. |
 | `404 Not Found` | No wallet record found for the authenticated user. |

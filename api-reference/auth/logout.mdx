@@ -1,16 +1,16 @@
 ---
-title: "POST /api/auth/logout — End Your Pay3 Session"
-sidebarTitle: "POST /auth/logout"
-description: "POST /api/auth/logout — invalidates your current session token and clears the session cookie."
+title: "Sign Out and Revoke Your Current Active Pay3 Session"
+sidebarTitle: "Logout"
+description: "Invalidate your current Pay3 session token and clear the session cookie. Safe to call unconditionally even if no active session is present."
 ---
 
-Calling this endpoint immediately revokes your current Pay3 session. The server marks the session token as revoked in the database so it cannot be reused, and clears the `pay3_session` httpOnly cookie in the response. After logout, any subsequent request using the same session token or cookie will receive a `401 Unauthorized` response.
+Calling this endpoint immediately revokes your current Pay3 session. The server marks the session token as revoked so it cannot be reused, and clears the `pay3_session` cookie in the response. After logout, any subsequent request using the same session token or cookie will receive a `401 Unauthorized` response.
 
 ## Endpoint
 
 **`POST /api/auth/logout`**
 
-Authentication is **required**. Include either the `pay3_session` cookie (set automatically by the browser) or an `Authorization: Bearer <session-token>` header.
+Authentication is **optional**. If a valid `pay3_session` cookie or `Authorization: Bearer <session-token>` header is present, the session is revoked. If no token is present or the token has already expired, the endpoint still returns `204 No Content` and clears the cookie — it is safe to call unconditionally during a sign-out flow.
 
 ---
 
@@ -22,13 +22,11 @@ No request body is required for this endpoint.
 
 ## Response
 
-A successful logout returns `204 No Content` with an empty body. The `pay3_session` cookie is cleared in the `Set-Cookie` response header.
+A successful logout returns `204 No Content` with an empty body. The `pay3_session` cookie is cleared via the `Set-Cookie` response header.
 
 <Note>
-  If no valid session token is present in the request (e.g., the cookie has
-  already expired or the token was never set), the endpoint still returns
-  `204 No Content` and clears the cookie — it is safe to call unconditionally
-  during a sign-out flow.
+  There is no JSON body in the response. A `204` status with no content is the
+  only success indicator.
 </Note>
 
 ---
@@ -37,7 +35,7 @@ A successful logout returns `204 No Content` with an empty body. The `pay3_sessi
 
 ### Using the session cookie (browser)
 
-```bash curl
+```bash
 curl --request POST \
   --url https://api.pay3.dev/api/auth/logout \
   --cookie 'pay3_session=your-session-token-here'
@@ -45,7 +43,7 @@ curl --request POST \
 
 ### Using a Bearer token (server-to-server)
 
-```bash curl
+```bash
 curl --request POST \
   --url https://api.pay3.dev/api/auth/logout \
   --header 'Authorization: Bearer your-session-token-here'
@@ -64,4 +62,4 @@ Set-Cookie: pay3_session=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOn
 
 | HTTP Status | Description |
 |---|---|
-| `401 Unauthorized` | The session token is structurally invalid (malformed header or cookie). A missing or already-expired token will still return `204`. |
+| `401 Unauthorized` | The session token is structurally invalid (malformed header or cookie value). A missing or already-expired token will still return `204`. |

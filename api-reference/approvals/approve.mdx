@@ -1,10 +1,10 @@
 ---
 title: "POST /api/approvals/:txId/approve — Approve a Transaction"
 sidebarTitle: "POST /approvals/approve"
-description: "POST /api/approvals/:txId/approve — approves a pending AI transaction and immediately submits it to the Stellar network."
+description: "POST /api/approvals/:txId/approve — approves a pending transaction and submits it to the Stellar network, returning the updated transaction record."
 ---
 
-Approve a transaction that is waiting in the manual review queue. Once you call this endpoint, Pay3 immediately signs the Stellar transaction envelope and broadcasts it to the network — no further action is needed on your part. The response includes the Stellar transaction hash you can use to track the payment on-chain. Approval requests expire 2 minutes after they are created, so act promptly after retrieving the pending list.
+Approve a transaction that is waiting in the manual review queue. Once you call this endpoint, Pay3 immediately signs the Stellar transaction envelope and broadcasts it to the network — no further action is needed on your part. The response is the updated transaction record, which will include the Stellar transaction hash once the network confirms the payment. Approval requests expire 2 minutes after they are created, so act promptly after retrieving the pending list.
 
 ## Endpoint
 
@@ -23,7 +23,7 @@ Authorization: Bearer <token>
 ## Path parameters
 
 <ParamField path="txId" type="string" required>
-  The UUID of the transaction to approve. Obtain this from the `transactionId` field in [GET /api/approvals/pending](/api-reference/approvals/list).
+  The UUID of the **transaction** to approve. Obtain this from the `transactionId` field in [GET /api/approvals/pending](/api-reference/approvals/list).
 </ParamField>
 
 ## Request body
@@ -32,23 +32,55 @@ No request body is required.
 
 ## Response
 
-<ResponseField name="success" type="boolean" required>
-  `true` when the transaction has been successfully submitted to the Stellar network.
+Returns the updated transaction record after submission. The shape mirrors the objects returned by [GET /api/transactions/:id](/api-reference/transactions/get).
+
+<ResponseField name="id" type="string" required>
+  UUID of the transaction.
 </ResponseField>
 
-<ResponseField name="stellarHash" type="string" required>
-  The Stellar transaction hash. Use this to track the payment on [Stellar Expert](https://stellar.expert) or via the Stellar Horizon API.
+<ResponseField name="status" type="string" required>
+  Updated transaction status. Will be `SUBMITTING` immediately after approval while the Stellar network processes the payment, and will eventually transition to `SUCCESS` or `FAILED`.
+</ResponseField>
+
+<ResponseField name="stellarTransactionHash" type="string">
+  The Stellar transaction hash. Populated once the transaction reaches `SUCCESS`. May be `null` if the network confirmation has not yet been received at the time the response is returned — poll [GET /api/transactions/:id](/api-reference/transactions/get) to retrieve the final hash.
+</ResponseField>
+
+<ResponseField name="action" type="string" required>
+  Always `TRANSFER` for transactions that pass through the approval queue.
+</ResponseField>
+
+<ResponseField name="asset" type="string" required>
+  Asset code transferred.
+</ResponseField>
+
+<ResponseField name="amount" type="string" required>
+  Transfer amount as a decimal string.
+</ResponseField>
+
+<ResponseField name="recipientAddress" type="string" required>
+  Destination Stellar G-address.
+</ResponseField>
+
+<ResponseField name="policyDecision" type="string" required>
+  Always `PENDING_APPROVAL` for transactions that went through the approval queue.
+</ResponseField>
+
+<ResponseField name="completedAt" type="string">
+  ISO 8601 timestamp when the transaction reached `SUCCESS`. `null` if network confirmation is still pending.
 </ResponseField>
 
 ## Error responses
 
 | Status | Meaning |
 |--------|---------|
-| `404 Not Found` | No approval request exists for the given `txId`, or it does not belong to your account. |
+| `400 Bad Request` | The provided `txId` is not a valid UUID. |
+| `401 Unauthorized` | Missing or invalid bearer token. |
+| `404 Not Found` | No pending approval request exists for the given `txId`, it does not belong to your account, or it has already been acted upon. |
 | `410 Gone` | The approval request has expired (the 2-minute window elapsed before you approved). The transaction status is now `EXPIRED`. |
 
 <Warning>
-  **Approval is irreversible.** The moment you call this endpoint the transaction is signed and submitted to the Stellar network. Funds will leave your smart account immediately. There is no undo — Stellar transactions are final. Verify the `amount`, `asset`, and `recipient` in the [pending approvals list](/api-reference/approvals/list) before approving.
+  **Approval is irreversible.** The moment you call this endpoint the transaction is signed and submitted to the Stellar network. Funds will leave your smart account immediately. There is no undo — Stellar transactions are final. Verify the `amount`, `asset`, and `recipientAddress` in the [pending approvals list](/api-reference/approvals/list) before approving.
 </Warning>
 
 ## Example request
@@ -62,8 +94,19 @@ curl -X POST https://api.pay3.dev/api/approvals/c3b2a1f0-9876-5432-fedc-ba098765
 
 ```json
 {
-  "success": true,
-  "stellarHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2"
+  "id": "c3b2a1f0-9876-5432-fedc-ba0987654321",
+  "action": "TRANSFER",
+  "asset": "USDC",
+  "amount": "75.0000000",
+  "recipientAddress": "GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "recipientInput": "GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  "status": "SUCCESS",
+  "policyDecision": "PENDING_APPROVAL",
+  "stellarTransactionHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+  "rejectionReason": null,
+  "aiSessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "createdAt": "2025-07-08T14:30:00.000Z",
+  "completedAt": "2025-07-08T14:30:07.345Z"
 }
 ```
 
@@ -77,5 +120,5 @@ curl -X POST https://api.pay3.dev/api/approvals/c3b2a1f0-9876-5432-fedc-ba098765
 ```
 
 <Note>
-  After a successful approval you can retrieve the full transaction record — including `confirmedAt` once the Stellar network has finalized it — via [GET /api/transactions/:id](/api-reference/transactions/get).
+  If `stellarTransactionHash` is `null` in the response, the Stellar network confirmation is still pending. Retrieve the final state — including the hash once confirmed — via [GET /api/transactions/:id](/api-reference/transactions/get).
 </Note>

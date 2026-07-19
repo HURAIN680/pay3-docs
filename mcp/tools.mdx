@@ -75,10 +75,7 @@ Initiates a payment from your Pay3 smart account to a recipient. Before the tran
 <ParamField body="amount" type="string" required>
   The amount to send, expressed as a decimal string. Examples: `"5"`, `"10.00"`, `"0.50"`.
 </ParamField>
-<ParamField body="memo" type="string">
-  An optional memo attached to the Stellar transaction. Useful for referencing invoices or order IDs. Example: `"invoice-42"`.
-</ParamField>
-<ParamField body="idempotencyKey" type="string">
+<ParamField body="idempotency_key" type="string" required>
   A stable, unique key for this payment intent (8–128 characters). If you retry the same transfer, reuse the exact same key — Pay3 will recognise the duplicate and return the original result instead of submitting a second transaction. Generate a UUID per payment attempt, or use a meaningful identifier like `"order-789-payment-1"`.
 </ParamField>
 
@@ -102,8 +99,9 @@ Every `transfer` call produces one of three outcomes:
 
 - *"Send 5 USDC to Alice."*
 - *"Pay Bob 0.50 XLM for the API call."*
-- *"Transfer 100 USDC to GABCDE...XYZ with memo 'invoice-42'."*
+- *"Transfer 100 USDC to GABCDE...XYZ."*
 - *"Pay the supplier 200 USDC. Use idempotency key order-1234."*
+- *"Send 50 XLM to my contact named Dev Fund."*
 
 ### Example responses
 

@@ -1,7 +1,7 @@
 ---
 title: "POST /api/ai-sessions — Create a New AI Session"
 sidebarTitle: "POST /ai-sessions"
-description: "POST /api/ai-sessions — creates an AI session for a smart account and policy, returning an MCP auth token and configuration JSON."
+description: "POST /api/ai-sessions — creates an AI session for a smart account and policy, returning an MCP auth token and on-chain registration parameters."
 ---
 
 Create a new AI session to authorize an AI assistant to submit Stellar transactions on your behalf. When you create a session, Pay3 generates an ephemeral session keypair, derives an MCP auth token, and returns a ready-to-paste configuration block for your AI client. You also receive the parameters needed to register the session on-chain via your Soroban smart account contract — this on-chain call activates the session so the Stellar network will accept its signed transactions.
@@ -30,8 +30,12 @@ Authorization: Bearer <token>
   UUID of the spending policy to apply to this session. All transactions submitted through this session are evaluated against the policy's budget limits, allowed assets, and approval thresholds.
 </ParamField>
 
-<ParamField body="aiClientType" type="string" required>
+<ParamField body="clientType" type="string" required>
   The AI client you are authorizing. Must be one of: `CURSOR`, `CLAUDE`, `CHATGPT`, `GEMINI`, `OTHER`.
+</ParamField>
+
+<ParamField body="authorizationTxHash" type="string">
+  *(Optional)* The Stellar transaction hash of the on-chain `add_session` call, if you have already submitted it. You may supply this after the fact by creating the session first and registering on-chain separately.
 </ParamField>
 
 ## Response fields
@@ -45,39 +49,39 @@ Authorization: Bearer <token>
 </ResponseField>
 
 <ResponseField name="mcpConfig" type="object" required>
-  Ready-to-paste JSON configuration block for your AI client's MCP server settings. Paste this directly into your client's config file (e.g. `.cursor/mcp.json` or Claude Desktop's `claude_desktop_config.json`).
+  Ready-to-use configuration for your AI client's MCP server settings.
 
   <Expandable title="mcpConfig fields">
-    <ResponseField name="mcpServers" type="object">
-      Top-level key wrapping the server configuration.
+    <ResponseField name="apiBaseUrl" type="string">
+      The Pay3 MCP server base URL your client should connect to.
+    </ResponseField>
+    <ResponseField name="mcpAuthToken" type="string">
+      Duplicate of the top-level `mcpAuthToken` — included here for convenience so you can paste the entire `mcpConfig` block into your client's configuration.
+    </ResponseField>
+    <ResponseField name="stdio" type="object">
+      Configuration for launching the MCP server process directly (for clients that support stdio-mode MCP servers).
 
-      <Expandable title="mcpServers fields">
-        <ResponseField name="pay3" type="object">
-          The Pay3 MCP server entry.
-
-          <Expandable title="pay3 fields">
-            <ResponseField name="command" type="string">
-              The command used to launch the MCP server (e.g. `npx`).
-            </ResponseField>
-            <ResponseField name="args" type="array">
-              Arguments passed to the command, including the Pay3 MCP package name.
-            </ResponseField>
-            <ResponseField name="env" type="object">
-              Environment variables injected at runtime, including `PAY3_MCP_TOKEN` set to your `mcpAuthToken`.
-            </ResponseField>
-          </Expandable>
+      <Expandable title="stdio fields">
+        <ResponseField name="command" type="string">
+          The command used to launch the MCP server process.
+        </ResponseField>
+        <ResponseField name="args" type="array">
+          Arguments passed to the launch command.
+        </ResponseField>
+        <ResponseField name="env" type="object">
+          Environment variables to inject, including `PAY3_MCP_AUTH_TOKEN` set to your session token.
         </ResponseField>
       </Expandable>
     </ResponseField>
   </Expandable>
 </ResponseField>
 
-<ResponseField name="onChainRegistration" type="object" required>
-  Parameters for the Soroban `add_session` contract call that activates this session on the Stellar network. You must submit this call — signed by your owner wallet — before the AI can send any transactions.
+<ResponseField name="onChainRegistration" type="object">
+  Parameters for the Soroban `add_session` contract call that activates this session on the Stellar network. You must submit this call — signed by your owner wallet — before the AI can send any transactions. Returns `null` if no smart account contract ID could be resolved.
 
   <Expandable title="onChainRegistration fields">
     <ResponseField name="contractId" type="string">
-      The Soroban contract address of your smart account.
+      The Soroban contract address (C-address) of your smart account.
     </ResponseField>
     <ResponseField name="method" type="string">
       Always `"add_session"`.
@@ -85,26 +89,30 @@ Authorization: Bearer <token>
     <ResponseField name="sessionPublicKey" type="string">
       The Ed25519 public key of the ephemeral session keypair (Stellar G-address format). This is the key authorized to sign transactions on-chain.
     </ResponseField>
-    <ResponseField name="expiresAt" type="number">
-      Session expiry as a Unix timestamp (seconds). Matches `expiresAt` on the session object.
+    <ResponseField name="expiresAtUnix" type="number">
+      Session expiry as a Unix timestamp in seconds. Pass this directly to the `add_session` contract call.
     </ResponseField>
     <ResponseField name="perTxMax" type="string">
-      Maximum spend per transaction in USD, as a string decimal. Sourced from the linked policy.
+      Maximum spend per transaction in USD, as a decimal string. Sourced from the linked policy's `perTransactionMax`.
     </ResponseField>
     <ResponseField name="dailyMax" type="string">
-      Maximum daily spend in USD, as a string decimal. Sourced from the linked policy.
+      Maximum daily spend in USD, as a decimal string. Sourced from the linked policy's `dailyBudget`.
     </ResponseField>
     <ResponseField name="usdcSacContractId" type="string">
       Contract address of the USDC Stellar Asset Contract (SAC) used for budget enforcement on-chain.
     </ResponseField>
     <ResponseField name="note" type="string">
-      Human-readable instruction reminding you to sign `add_session` with your owner wallet before MCP transfers will be accepted.
+      Human-readable reminder to sign the `add_session` call with your owner wallet before MCP transfers will be accepted.
     </ResponseField>
   </Expandable>
 </ResponseField>
 
 <ResponseField name="expiresAt" type="string" required>
   ISO 8601 timestamp when this session will automatically expire. Determined by the `sessionDurationHours` field of the linked policy.
+</ResponseField>
+
+<ResponseField name="status" type="string" required>
+  Initial status of the session. Always `ACTIVE` on creation.
 </ResponseField>
 
 <Warning>
@@ -120,7 +128,7 @@ curl -X POST https://api.pay3.dev/api/ai-sessions \
   -d '{
     "smartAccountId": "a1b2c3d4-1234-5678-abcd-ef0123456789",
     "policyId": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
-    "aiClientType": "CURSOR"
+    "clientType": "CURSOR"
   }'
 ```
 
@@ -129,15 +137,16 @@ curl -X POST https://api.pay3.dev/api/ai-sessions \
 ```json
 {
   "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+  "status": "ACTIVE",
   "mcpAuthToken": "pay3_mcp_ey...<redacted>",
   "mcpConfig": {
-    "mcpServers": {
-      "pay3": {
-        "command": "npx",
-        "args": ["-y", "@pay3/mcp-server"],
-        "env": {
-          "PAY3_MCP_TOKEN": "pay3_mcp_ey...<redacted>"
-        }
+    "apiBaseUrl": "https://mcp.pay3.dev",
+    "mcpAuthToken": "pay3_mcp_ey...<redacted>",
+    "stdio": {
+      "command": "node",
+      "args": ["apps/mcp-server/dist/index.js"],
+      "env": {
+        "PAY3_MCP_AUTH_TOKEN": "pay3_mcp_ey...<redacted>"
       }
     }
   },
@@ -145,7 +154,7 @@ curl -X POST https://api.pay3.dev/api/ai-sessions \
     "contractId": "CCHD3XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
     "method": "add_session",
     "sessionPublicKey": "GDXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-    "expiresAt": 1752672600,
+    "expiresAtUnix": 1752672600,
     "perTxMax": "100",
     "dailyMax": "500",
     "usdcSacContractId": "CCW67TSZV3SSS2HXMBQ5JFGCKJNXKZM7UQUWUZPUTHXSTZLEO7SJMI75",
@@ -154,6 +163,14 @@ curl -X POST https://api.pay3.dev/api/ai-sessions \
   "expiresAt": "2025-07-15T14:30:00.000Z"
 }
 ```
+
+## Error responses
+
+| Status | Meaning |
+|--------|---------|
+| `400 Bad Request` | Missing or invalid `smartAccountId`, `policyId`, or `clientType`. |
+| `401 Unauthorized` | Missing or invalid bearer token. |
+| `404 Not Found` | The specified `smartAccountId` or `policyId` does not exist or does not belong to your account. |
 
 <Note>
   After receiving the response, submit the `onChainRegistration` parameters via Freighter, the Stellar CLI, or your preferred Soroban client. The session exists in Pay3's system immediately, but the AI cannot submit transactions until the smart account contract has recorded the session public key on-chain.

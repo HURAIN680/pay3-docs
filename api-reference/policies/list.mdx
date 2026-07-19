@@ -1,18 +1,22 @@
 ---
-title: "GET /api/policies — List Your Spending Policies"
+title: "GET /api/policies — List and Get Spending Policies"
 sidebarTitle: "GET /policies"
-description: "GET /api/policies — returns all spending policies you have created, including presets and custom policies with their budget configurations."
+description: "GET /api/policies returns all your spending policies. GET /api/policies/:id retrieves a single policy by UUID, including all budget and action limits."
 ---
 
-Fetch all active spending policies on your account. A spending policy defines the guardrails — daily budgets, per-transaction caps, manual approval thresholds, allowed assets, and session lifetimes — that govern what an AI session is permitted to do. Use this endpoint to inspect your existing policies before attaching one to a new session, or to audit your current configuration.
+Fetch all active spending policies on your account. A spending policy defines the guardrails — daily budgets, per-transaction caps, manual approval thresholds, allowed assets, allowed actions, and session lifetimes — that govern what an AI session is permitted to do. Use this endpoint to inspect your existing policies before attaching one to a new session, or to audit your current configuration.
 
-## Endpoint
+---
+
+## List all policies
+
+### Endpoint
 
 ```
 GET /api/policies
 ```
 
-## Authentication
+### Authentication
 
 All requests must include a valid bearer token in the `Authorization` header, or a `pay3_session` cookie obtained during wallet authentication.
 
@@ -20,9 +24,9 @@ All requests must include a valid bearer token in the `Authorization` header, or
 Authorization: Bearer <token>
 ```
 
-## Response
+### Response
 
-Returns an array of policy objects, ordered newest-first. Policies that have been deleted (soft-deleted via `isActive: false`) are excluded.
+Returns an array of policy objects, ordered newest-first. Soft-deleted policies (`isActive: false`) are excluded.
 
 ### Response fields
 
@@ -46,6 +50,10 @@ Returns an array of policy objects, ordered newest-first. Policies that have bee
   Maximum total spend allowed per calendar day, in USD. Returned as a decimal string.
 </ResponseField>
 
+<ResponseField name="monthlyBudget" type="string">
+  Optional monthly spend cap in USD as a decimal string. `null` if no monthly limit is configured.
+</ResponseField>
+
 <ResponseField name="perTransactionMax" type="string" required>
   Maximum amount allowed in a single transaction, in USD. Transactions exceeding this value are rejected outright.
 </ResponseField>
@@ -62,18 +70,41 @@ Returns an array of policy objects, ordered newest-first. Policies that have bee
   List of asset tickers the AI is permitted to transact with, e.g. `["USDC", "XLM"]`. Transactions involving any other asset are rejected.
 </ResponseField>
 
+<ResponseField name="allowedActions" type="array" required>
+  List of actions this policy permits the AI to perform. Possible values:
+  - `CHECK_BALANCE` — read wallet and smart account balances
+  - `TRANSFER` — send assets to a recipient
+  - `VIEW_TRANSACTION_HISTORY` — list past transactions
+</ResponseField>
+
+<ResponseField name="allowedRecipientIds" type="array" required>
+  Array of contact UUIDs from your Pay3 address book. When non-empty, the AI may only send funds to these contacts. An empty array means no recipient restriction is enforced.
+</ResponseField>
+
+<ResponseField name="rateLimitPerMinute" type="number">
+  Maximum number of transactions the AI may submit per minute under this policy. `null` if no rate limit is configured.
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean" required>
+  Whether this policy is currently active. Only active policies are returned by this endpoint.
+</ResponseField>
+
 <ResponseField name="createdAt" type="string" required>
   ISO 8601 timestamp when the policy was created.
 </ResponseField>
 
-## Example request
+<ResponseField name="updatedAt" type="string" required>
+  ISO 8601 timestamp when the policy was last modified.
+</ResponseField>
+
+### Example request
 
 ```bash
 curl https://api.pay3.dev/api/policies \
   -H "Authorization: Bearer <token>"
 ```
 
-## Example response
+### Example response
 
 ```json
 [
@@ -82,22 +113,99 @@ curl https://api.pay3.dev/api/policies \
     "name": "My Custom Policy",
     "preset": "CUSTOM",
     "dailyBudget": "250.0000000",
+    "monthlyBudget": null,
     "perTransactionMax": "75.0000000",
     "manualApprovalThreshold": "50.0000000",
     "sessionDurationHours": 72,
     "allowedAssets": ["USDC", "XLM"],
-    "createdAt": "2025-07-01T10:00:00.000Z"
+    "allowedActions": ["CHECK_BALANCE", "TRANSFER", "VIEW_TRANSACTION_HISTORY"],
+    "allowedRecipientIds": [],
+    "rateLimitPerMinute": null,
+    "isActive": true,
+    "createdAt": "2025-07-01T10:00:00.000Z",
+    "updatedAt": "2025-07-01T10:00:00.000Z"
   },
   {
     "id": "c2d3e4f5-0000-1111-2222-333344445555",
     "name": "Balanced Preset",
     "preset": "BALANCED",
     "dailyBudget": "500.0000000",
+    "monthlyBudget": null,
     "perTransactionMax": "100.0000000",
     "manualApprovalThreshold": "250.0000000",
     "sessionDurationHours": 168,
     "allowedAssets": ["USDC", "XLM"],
-    "createdAt": "2025-06-20T08:00:00.000Z"
+    "allowedActions": ["CHECK_BALANCE", "TRANSFER", "VIEW_TRANSACTION_HISTORY"],
+    "allowedRecipientIds": [],
+    "rateLimitPerMinute": null,
+    "isActive": true,
+    "createdAt": "2025-06-20T08:00:00.000Z",
+    "updatedAt": "2025-06-20T08:00:00.000Z"
   }
 ]
+```
+
+---
+
+## Get a single policy
+
+Retrieve one policy by its UUID. Useful when you need to verify the exact configuration before attaching the policy to a new AI session.
+
+### Endpoint
+
+```
+GET /api/policies/:id
+```
+
+### Authentication
+
+```
+Authorization: Bearer <token>
+```
+
+### Path parameters
+
+<ParamField path="id" type="string" required>
+  The UUID of the policy to retrieve.
+</ParamField>
+
+### Response
+
+Returns a single policy object with the same fields as the list response above. Returns `404 Not Found` if the policy does not exist or does not belong to your account.
+
+### Error responses
+
+| Status | Meaning |
+|--------|---------|
+| `400 Bad Request` | The provided `id` is not a valid UUID. |
+| `401 Unauthorized` | Missing or invalid bearer token. |
+| `404 Not Found` | No active policy exists for the given `id` on your account. |
+
+### Example request
+
+```bash
+curl https://api.pay3.dev/api/policies/f9e8d7c6-dcba-4321-fedc-ba9876543210 \
+  -H "Authorization: Bearer <token>"
+```
+
+### Example response
+
+```json
+{
+  "id": "f9e8d7c6-dcba-4321-fedc-ba9876543210",
+  "name": "My Custom Policy",
+  "preset": "CUSTOM",
+  "dailyBudget": "250.0000000",
+  "monthlyBudget": null,
+  "perTransactionMax": "75.0000000",
+  "manualApprovalThreshold": "50.0000000",
+  "sessionDurationHours": 72,
+  "allowedAssets": ["USDC", "XLM"],
+  "allowedActions": ["CHECK_BALANCE", "TRANSFER", "VIEW_TRANSACTION_HISTORY"],
+  "allowedRecipientIds": ["b5c6d7e8-1234-5678-abcd-ef0123456789"],
+  "rateLimitPerMinute": 10,
+  "isActive": true,
+  "createdAt": "2025-07-01T10:00:00.000Z",
+  "updatedAt": "2025-07-01T10:00:00.000Z"
+}
 ```

@@ -1,7 +1,7 @@
 ---
-title: "GET /api/smart-accounts — List Linked Smart Accounts"
-sidebarTitle: "GET /smart-accounts"
-description: "GET /api/smart-accounts — lists all Soroban smart account contracts you have linked to your Pay3 account."
+title: "List Linked Smart Accounts — Pay3 Smart Accounts"
+sidebarTitle: "List Accounts"
+description: "Return all Soroban smart account contracts linked to your Pay3 account, ordered by most recently linked first. Returns an empty array if none are linked."
 ---
 
 Smart accounts are Soroban contracts deployed on Stellar that act as programmable spending vaults. Once you link a deployed contract to your Pay3 account, AI sessions can reference it to authorize and execute on-chain payments within your defined policies. This endpoint returns every smart account you have linked, ordered by most recently linked first.
@@ -16,22 +16,54 @@ Authentication is **required**. Include either the `pay3_session` cookie or an `
 
 ## Response
 
-A successful `200 OK` response returns an array of smart account objects. The array is empty (`[]`) if you have not yet linked any contracts.
+All Pay3 API responses are wrapped in a standard envelope:
 
-<ResponseField name="id" type="string">
-  Pay3 internal smart account record ID.
+```json
+{
+  "data": [ ... ],
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
+}
+```
+
+A successful `200 OK` response returns an array of smart account objects inside `data`. The array is empty (`[]`) if you have not yet linked any contracts.
+
+<ResponseField name="data" type="array">
+  Array of linked smart account records.
+
+  <Expandable title="item fields" defaultOpen>
+    <ResponseField name="data[].id" type="string">
+      Pay3 internal smart account record ID (UUID).
+    </ResponseField>
+
+    <ResponseField name="data[].userId" type="string">
+      The Pay3 user ID that owns this smart account record.
+    </ResponseField>
+
+    <ResponseField name="data[].walletId" type="string">
+      The Pay3 wallet record ID this smart account is associated with.
+    </ResponseField>
+
+    <ResponseField name="data[].contractId" type="string">
+      The Soroban contract address on Stellar — a 56-character `C...` string.
+    </ResponseField>
+
+    <ResponseField name="data[].network" type="string">
+      The Stellar network this contract is deployed on — `TESTNET` or `PUBLIC`.
+    </ResponseField>
+
+    <ResponseField name="data[].createdAt" type="string">
+      ISO 8601 timestamp of when this smart account was linked to your Pay3
+      account.
+    </ResponseField>
+
+    <ResponseField name="data[].updatedAt" type="string">
+      ISO 8601 timestamp of when this smart account record was last updated.
+    </ResponseField>
+  </Expandable>
 </ResponseField>
 
-<ResponseField name="contractId" type="string">
-  The Soroban contract address on Stellar — a 56-character `C...` string.
-</ResponseField>
-
-<ResponseField name="network" type="string">
-  The Stellar network this contract is deployed on — `TESTNET` or `MAINNET`.
-</ResponseField>
-
-<ResponseField name="createdAt" type="string">
-  ISO 8601 timestamp of when this smart account was linked to your Pay3 account.
+<ResponseField name="requestId" type="string">
+  A unique identifier for this API request, useful for support and debugging.
 </ResponseField>
 
 ---
@@ -40,7 +72,7 @@ A successful `200 OK` response returns an array of smart account objects. The ar
 
 ### Request
 
-```bash curl
+```bash
 curl --request GET \
   --url https://api.pay3.dev/api/smart-accounts \
   --header 'Authorization: Bearer your-session-token-here'
@@ -49,26 +81,38 @@ curl --request GET \
 ### Response Body
 
 ```json
-[
-  {
-    "id": "sa_01hx2q3r4s5t6u7v8w9x0y1z",
-    "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE",
-    "network": "TESTNET",
-    "createdAt": "2024-11-01T10:30:00.000Z"
-  },
-  {
-    "id": "sa_01hz9a8b7c6d5e4f3g2h1i0j",
-    "contractId": "CCWAMYJME4H5CKG7OLXGC2T4M7FQGKWH3Y7TMKHBRVNLG6ZQPQHXJDE",
-    "network": "TESTNET",
-    "createdAt": "2024-10-15T08:00:00.000Z"
-  }
-]
+{
+  "data": [
+    {
+      "id": "e7f8a9b0-c1d2-3456-7890-abcdef123456",
+      "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "walletId": "f0e1d2c3-b4a5-6789-0123-456789abcdef",
+      "contractId": "CDJT5OQNBBSXMFBKXH3ZHQJH3XPXKBQQMYIBNHQK5ZYXDV7KXQHRMTE",
+      "network": "TESTNET",
+      "createdAt": "2024-11-01T10:30:00.000Z",
+      "updatedAt": "2024-11-01T10:30:00.000Z"
+    },
+    {
+      "id": "b2c3d4e5-f6a7-8901-bcde-f01234567890",
+      "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "walletId": "f0e1d2c3-b4a5-6789-0123-456789abcdef",
+      "contractId": "CCWAMYJME4H5CKG7OLXGC2T4M7FQGKWH3Y7TMKHBRVNLG6ZQPQHXJDE",
+      "network": "TESTNET",
+      "createdAt": "2024-10-15T08:00:00.000Z",
+      "updatedAt": "2024-10-15T08:00:00.000Z"
+    }
+  ],
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
+}
 ```
 
 ### Empty Response (no accounts linked)
 
 ```json
-[]
+{
+  "data": [],
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
+}
 ```
 
 ---

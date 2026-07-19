@@ -1,10 +1,10 @@
 ---
-title: "POST /api/auth/verify — Verify Wallet Signature and Sign In"
-sidebarTitle: "POST /auth/verify"
-description: "POST /api/auth/verify — verifies a Stellar wallet signature, creates a session, and sets the pay3_session cookie on success."
+title: "Sign In by Verifying Your Stellar Wallet Signature"
+sidebarTitle: "Verify Signature"
+description: "Submit a signed challenge to complete wallet-based sign-in. On success, Pay3 sets a session cookie and returns your authenticated user context."
 ---
 
-After you've received a challenge from [`POST /api/auth/challenge`](/api-reference/auth/challenge) and signed the `message` field with your Stellar wallet, submit the signature here to complete sign-in. Pay3 verifies the signature against the challenge, atomically marks it as consumed, creates your session, and — for browser clients — sets an httpOnly `pay3_session` cookie automatically.
+After you've received a challenge from [`POST /api/auth/challenge`](/api-reference/auth/challenge) and signed the `message` field with your Stellar wallet, submit the signature here to complete sign-in. Pay3 verifies the signature against the challenge, marks it as consumed, and creates your session. For browser clients, an httpOnly `pay3_session` cookie is set automatically and sent with every subsequent request.
 
 ## Endpoint
 
@@ -36,38 +36,54 @@ No authentication is required to call this endpoint.
 
 ## Response
 
-A successful `200 OK` response confirms authentication and returns the new session context.
+All Pay3 API responses are wrapped in a standard envelope:
 
-<ResponseField name="userId" type="string">
-  The Pay3 internal user ID associated with your wallet. Stable across sessions.
+```json
+{
+  "data": { ... },
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
+}
+```
+
+A successful `200 OK` response confirms authentication and returns the new session context inside `data`. The session is established via the `pay3_session` httpOnly cookie set in the response headers — the session token is **not** present in the response body.
+
+<ResponseField name="data" type="object">
+  The authenticated session context.
+
+  <Expandable title="data fields" defaultOpen>
+    <ResponseField name="data.userId" type="string">
+      The Pay3 internal user ID associated with your wallet. Stable across sessions.
+    </ResponseField>
+
+    <ResponseField name="data.walletId" type="string">
+      The Pay3 internal wallet record ID for the authenticated Stellar address.
+    </ResponseField>
+
+    <ResponseField name="data.walletAddress" type="string">
+      Your Stellar public key, normalized and echoed back.
+    </ResponseField>
+
+    <ResponseField name="data.network" type="string">
+      The Stellar network for this session — `testnet` or `public`.
+    </ResponseField>
+
+    <ResponseField name="data.expiresAt" type="string">
+      ISO 8601 timestamp indicating when the session cookie expires.
+    </ResponseField>
+  </Expandable>
 </ResponseField>
 
-<ResponseField name="walletId" type="string">
-  The Pay3 internal wallet record ID for the authenticated Stellar address.
+<ResponseField name="requestId" type="string">
+  A unique identifier for this API request, useful for support and debugging.
 </ResponseField>
 
-<ResponseField name="walletAddress" type="string">
-  Your Stellar public key, normalized and echoed back.
-</ResponseField>
-
-<ResponseField name="network" type="string">
-  The Stellar network for this session — `testnet` or `public`.
-</ResponseField>
-
-<ResponseField name="expiresAt" type="string">
-  ISO 8601 timestamp indicating when the session token expires.
-</ResponseField>
-
-<Warning>
-  The `pay3_session` cookie is set as **httpOnly** and is not accessible to
-  JavaScript. For browser clients this is the recommended authentication
-  mechanism — the cookie is sent automatically with every subsequent request.
-
-  For **server-to-server or CLI usage** where cookies are not practical, read
-  the `sessionToken` from the response body (only present in non-browser
-  contexts) and pass it via the `Authorization: Bearer <session-token>` header
-  on all protected endpoints.
-</Warning>
+<Note>
+  The `pay3_session` cookie is **httpOnly** — it is not accessible to JavaScript
+  and is sent automatically by the browser on all subsequent requests to
+  `api.pay3.dev`. For server-to-server or CLI usage, read the `Set-Cookie`
+  header from the verify response and pass the session token value via the
+  `Authorization: Bearer <session-token>` header on protected endpoints.
+</Note>
 
 ---
 
@@ -88,7 +104,7 @@ Freighter's `signMessage()` produces a SEP-53 signature (hashed before signing).
 
 ### Request
 
-```bash curl
+```bash
 curl --request POST \
   --url https://api.pay3.dev/api/auth/verify \
   --header 'Content-Type: application/json' \
@@ -99,25 +115,18 @@ curl --request POST \
   }'
 ```
 
-### Request Body
-
-```json
-{
-  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
-  "nonce": "8f3a92b1c4e07d56af2190be",
-  "signature": "base64encodedSignatureHere=="
-}
-```
-
 ### Response Body
 
 ```json
 {
-  "userId": "usr_01hx2q3r4s5t6u7v8w9x0y1z",
-  "walletId": "wal_01hx2q3r4s5t6u7v8w9x0y1z",
-  "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
-  "network": "testnet",
-  "expiresAt": "2024-11-08T12:00:00.000Z"
+  "data": {
+    "userId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "walletId": "f0e1d2c3-b4a5-6789-0123-456789abcdef",
+    "walletAddress": "GAHJJJKMOKYE4RVPZEWZTKH5FVI4PA3VL7GK2LFNUBSGBV8XVMHXV6R",
+    "network": "testnet",
+    "expiresAt": "2024-11-08T12:00:00.000Z"
+  },
+  "requestId": "req_01hx2q3r4s5t6u7v8w9x0y1z"
 }
 ```
 

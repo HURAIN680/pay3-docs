@@ -1,7 +1,7 @@
 ---
 title: "Contacts API — List, Create, and Delete Recipients"
 sidebarTitle: "Contacts"
-description: "Manage your trusted Stellar recipient contacts via the Pay3 API. List, create, and delete contacts used for AI payment resolution."
+description: "Manage your trusted Stellar recipient contacts via the Pay3 API. List, create, and delete contacts used for AI payment resolution by name or alias."
 ---
 
 Contacts are your saved Stellar recipients — the trusted addresses your AI agents resolve by name when initiating transfers. Instead of requiring a raw Stellar address on every payment instruction, you can register a contact with a human-readable `alias` (e.g. `alice`) and let Pay3's AI resolve it automatically at transaction time. This page documents all three contact management endpoints: listing your existing contacts, creating a new one, and deleting one you no longer need.
@@ -37,15 +37,23 @@ GET /api/contacts
 </ResponseField>
 
 <ResponseField name="alias" type="string">
-  Short, lowercase identifier used by the AI to resolve this recipient by name (e.g. `"alice"`). May be `null` if no alias was set at creation.
+  Short identifier used by the AI to resolve this recipient by name (e.g. `"alice"`). May be `null` if no alias was set at creation.
 </ResponseField>
 
 <ResponseField name="stellarAddress" type="string" required>
   The contact's Stellar public key (G-address), stored in uppercase.
 </ResponseField>
 
+<ResponseField name="verifiedAt" type="string" required>
+  ISO 8601 timestamp marking when the contact was verified. Set to the creation time automatically.
+</ResponseField>
+
 <ResponseField name="createdAt" type="string" required>
   ISO 8601 timestamp when the contact was created.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string" required>
+  ISO 8601 timestamp when the contact was last modified.
 </ResponseField>
 
 ### Example request
@@ -64,14 +72,18 @@ curl https://api.pay3.dev/api/contacts \
     "displayName": "Alice Johnson",
     "alias": "alice",
     "stellarAddress": "GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOKY3B2WSQHG4W37",
-    "createdAt": "2025-06-01T10:00:00.000Z"
+    "verifiedAt": "2025-06-01T10:00:00.000Z",
+    "createdAt": "2025-06-01T10:00:00.000Z",
+    "updatedAt": "2025-06-01T10:00:00.000Z"
   },
   {
     "id": "c1a2b3d4-0002-4abc-8def-000000000002",
     "displayName": "Bob Smith",
     "alias": "bob",
     "stellarAddress": "GBVFEQKQ5VGHIH4CVXOL5TXIVMS6OJQMQHM5LLNTV3AAJHID5OFWKM4",
-    "createdAt": "2025-06-15T08:30:00.000Z"
+    "verifiedAt": "2025-06-15T08:30:00.000Z",
+    "createdAt": "2025-06-15T08:30:00.000Z",
+    "updatedAt": "2025-06-15T08:30:00.000Z"
   }
 ]
 ```
@@ -80,7 +92,7 @@ curl https://api.pay3.dev/api/contacts \
 
 ## POST /api/contacts
 
-Create a new contact and associate it with your account. The `stellarAddress` is normalized to uppercase on save, and `verifiedAt` is set automatically to the time of creation.
+Create a new contact and associate it with your account. The `stellarAddress` is normalized to uppercase on save, and `verifiedAt` is set automatically to the time of creation. Returns `201 Created` with the new contact object.
 
 ### Endpoint
 
@@ -95,7 +107,7 @@ POST /api/contacts
 </ParamField>
 
 <ParamField body="alias" type="string">
-  Short, lowercase identifier used by the Pay3 AI to resolve this recipient by name during payment instructions (e.g. `"alice"`). Must be unique across all your contacts.
+  Short identifier used by the Pay3 AI to resolve this recipient by name during payment instructions (e.g. `"alice"`). Must be unique across all your contacts. Omit to leave the alias unset.
 </ParamField>
 
 <ParamField body="stellarAddress" type="string" required>
@@ -103,7 +115,7 @@ POST /api/contacts
 </ParamField>
 
 <Note>
-  The `alias` field must be **unique** across all your contacts and should be **lowercase**. When an AI agent receives a natural-language instruction like _"send 50 USDC to alice"_, Pay3 resolves the recipient by matching `alias` against your contact list. Duplicate or mixed-case aliases will cause resolution to fail or behave unpredictably.
+  The `alias` field must be **unique** across all your contacts. When an AI agent receives a natural-language instruction like _"send 50 USDC to alice"_, Pay3 resolves the recipient by matching `alias` against your contact list. Duplicate aliases will cause resolution to fail.
 </Note>
 
 ### Response fields
@@ -124,13 +136,25 @@ POST /api/contacts
   The Stellar G-address, normalized to uppercase.
 </ResponseField>
 
+<ResponseField name="verifiedAt" type="string" required>
+  ISO 8601 timestamp marking when the contact was verified. Set to the creation time automatically.
+</ResponseField>
+
 <ResponseField name="createdAt" type="string" required>
   ISO 8601 timestamp when the contact record was created.
 </ResponseField>
 
-<ResponseField name="verifiedAt" type="string" required>
-  ISO 8601 timestamp marking when the contact was verified. Set to the creation time automatically.
+<ResponseField name="updatedAt" type="string" required>
+  ISO 8601 timestamp when the contact was last modified. Equals `createdAt` on creation.
 </ResponseField>
+
+### Error responses
+
+| Status | Meaning |
+|--------|---------|
+| `400 Bad Request` | Missing `displayName` or `stellarAddress`, or a duplicate `alias` already exists on your account. |
+| `401 Unauthorized` | Missing or invalid bearer token. |
+| `409 Conflict` | A contact with the same `stellarAddress` already exists on your account. |
 
 ### Example request
 
@@ -153,9 +177,9 @@ curl -X POST https://api.pay3.dev/api/contacts \
   "displayName": "Alice Johnson",
   "alias": "alice",
   "stellarAddress": "GDQP2KPQGKIHYJGXNUIYOMHARUARCA7DJT5FO2FFOOKY3B2WSQHG4W37",
-  "userId": "u9f8e7d6-abcd-1234-efgh-000000000099",
+  "verifiedAt": "2025-07-08T14:30:00.000Z",
   "createdAt": "2025-07-08T14:30:00.000Z",
-  "verifiedAt": "2025-07-08T14:30:00.000Z"
+  "updatedAt": "2025-07-08T14:30:00.000Z"
 }
 ```
 
@@ -163,7 +187,7 @@ curl -X POST https://api.pay3.dev/api/contacts \
 
 ## DELETE /api/contacts/:id
 
-Permanently delete a contact from your account by its UUID. This action is irreversible — the contact record is removed immediately and cannot be recovered.
+Permanently delete a contact from your account by its UUID. This action is irreversible — the contact record is removed immediately and cannot be recovered. Returns HTTP `204 No Content` on success.
 
 ### Endpoint
 
@@ -174,30 +198,28 @@ DELETE /api/contacts/:id
 ### Path parameters
 
 <ParamField path="id" type="string" required>
-  The UUID of the contact to delete. This must match both the contact's `id` and your authenticated user — you cannot delete contacts belonging to other accounts.
+  The UUID of the contact to delete. You can only delete contacts belonging to your own account.
 </ParamField>
 
 <Warning>
   If a contact's `id` appears in a policy's `allowedRecipientIds` list, deleting the contact does **not** automatically remove it from that list. Any active AI session governed by that policy will continue to reference the now-deleted contact ID. Update the affected policies after deleting a contact to keep your recipient restrictions accurate.
 </Warning>
 
-### Response fields
+### Response
 
-<ResponseField name="success" type="boolean" required>
-  Returns `true` when the contact was found and deleted successfully.
-</ResponseField>
+Returns HTTP `204 No Content` on success — no response body is sent.
+
+### Error responses
+
+| Status | Meaning |
+|--------|---------|
+| `400 Bad Request` | The provided `id` is not a valid UUID. |
+| `401 Unauthorized` | Missing or invalid bearer token. |
+| `404 Not Found` | No contact exists for the given `id` on your account. |
 
 ### Example request
 
 ```bash
 curl -X DELETE https://api.pay3.dev/api/contacts/c1a2b3d4-0001-4abc-8def-000000000001 \
   -H "Authorization: Bearer <token>"
-```
-
-### Example response
-
-```json
-{
-  "success": true
-}
 ```

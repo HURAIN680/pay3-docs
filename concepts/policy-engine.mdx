@@ -93,7 +93,7 @@ This is intentional. It means:
 
   **Example:** Your session has a $20 per-transaction cap, and the AI tried to send $50 in a single transfer.
 
-  **Resolution:** The AI cannot split the transaction automatically. You either approve the amount manually (if it's below your `perTransactionMax` after reconfiguring), or create a new session with a higher single-transaction limit.
+  **Resolution:** Amounts that exceed `perTransactionMax` are always rejected — this is a hard limit that cannot be overridden by manual approval. To allow larger single payments, create a new session (or policy) with a higher `perTransactionMax`. For the current request, you can ask your AI to split the payment into multiple smaller transfers that each stay within the limit.
 </Accordion>
 
 <Accordion title="DAILY_BUDGET_EXCEEDED">
@@ -133,7 +133,7 @@ The policy engine is Pay3's off-chain layer. It handles the full range of intell
 
 The Soroban smart account handles the critical on-chain layer: session expiry, per-transaction caps, and daily caps written directly into the contract at session creation time.
 
-```
+```text
 AI Request
      ↓
 Off-Chain Policy Engine

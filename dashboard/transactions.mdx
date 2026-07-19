@@ -1,7 +1,7 @@
 ---
-title: "View Your AI Agent's Full Transaction History"
+title: "View Your AI Agent's Full Transaction History in Pay3"
 sidebarTitle: "Transactions"
-description: "Browse all AI-initiated transactions in Pay3 — amounts, assets, statuses, Stellar transaction hashes, and execution details."
+description: "Browse every AI-initiated transaction in Pay3 — amounts, assets, lifecycle statuses, Stellar transaction hashes, and daily budget usage."
 ---
 
 The Transactions page is a complete, read-only log of every payment your AI agents have requested through Pay3. Whether a transaction succeeded on-chain, failed a policy check, or expired in the approvals queue, it appears here. Use this page to audit AI spending, investigate failed payments, and verify on-chain settlement.
@@ -47,7 +47,7 @@ Pay3 supports both testnet and mainnet. The Stellar Explorer link automatically 
 
 ## Budget tracking and daily resets
 
-Pay3 tracks spending per session against the `dailyBudget` defined in the session's policy. The budget counter resets every day at **midnight UTC**. You can see current budget consumption per session in the Overview page's stat cards.
+Pay3 tracks cumulative spending per session against the daily budget defined in the session's policy. The budget counter resets every day at **midnight UTC**. You can review current budget consumption per session from the [Overview](/dashboard/overview) page.
 
 <Accordion title="What counts toward the daily budget?">
   Only transactions with **SUCCESS** status count toward the daily budget. FAILED and EXPIRED transactions do not consume budget. PENDING transactions reserve budget until they are approved (and succeed) or expire.
@@ -67,8 +67,8 @@ If you see transactions with FAILED status, the table below covers the most comm
 
 | Cause | What to check |
 |---|---|
-| Policy rejection | The requested amount exceeded `perTransactionMax` or used an asset not in `allowedAssets` |
-| Daily budget exceeded | The session's `dailyBudget` was fully consumed before the request |
+| Policy rejection | The requested amount exceeded the per-transaction maximum or used an asset not in the policy's allowed assets |
+| Daily budget exceeded | The session's daily budget was fully consumed before the request |
 | Contract rejection | The on-chain session registration was not completed or the session key is invalid |
 | Network error | A transient Stellar network issue — the AI can safely retry |
 | Insufficient vault balance | The smart account's USDC balance was too low — [deposit more funds](/dashboard/smart-accounts#depositing-usdc-into-your-vault) |

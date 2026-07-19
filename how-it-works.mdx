@@ -1,7 +1,7 @@
 ---
-title: "How Pay3 Handles AI Payments End to End"
+title: "How Pay3 Routes AI Payments from Request to Settlement"
 sidebarTitle: "How It Works"
-description: "Follow a payment from the moment your AI makes a request to on-chain Stellar settlement — and learn how session keys and policies keep you in control."
+description: "Follow a payment from AI request to Stellar settlement, and learn how session keys and spending policies keep you in control at every step."
 ---
 
 Pay3 sits between your AI assistant and the Stellar blockchain, acting as a secure execution layer that validates every financial action against your rules before anything reaches the network. This page explains the two core payment flows, the session key security model that protects your private key, and the three-level decision engine that decides whether a payment executes automatically, waits for your approval, or gets rejected outright.
@@ -66,8 +66,8 @@ When you ask your AI to send funds directly — "pay 5 USDC to John" — it call
 
 <Steps>
 
-  <Step title="AI calls transfer(recipient, asset, amount)">
-    The AI invokes the `transfer` tool with three arguments: who to pay, which asset, and how much. It also supplies an `idempotency_key` — a stable identifier for this specific payment intent.
+  <Step title="AI calls transfer(recipient, asset, amount, idempotency_key)">
+    The AI invokes the `transfer` tool with four arguments: who to pay, which asset, how much, and an `idempotency_key` — a stable identifier for this specific payment intent.
 
     <Note>
       Idempotency keys protect you from duplicate payments. If your AI retries a transfer (e.g. after a timeout) using the same key, Pay3 recognises the duplicate and returns the original result instead of executing a second transaction.
@@ -197,7 +197,7 @@ Pay3's security model is built around one principle: **your AI never has access 
 | ❌ Access your primary private key | Never exposed, not even to the Pay3 backend |
 | ❌ Exceed per-transaction or daily limits | Blocked by both the policy engine and the on-chain contract |
 | ❌ Use disallowed assets or recipients | Rejected at the policy evaluation step |
-| ❌ Continue after session expiry | Contracts enforces expiry on-chain |
+| ❌ Continue after session expiry | Contract enforces expiry on-chain |
 
 ---
 

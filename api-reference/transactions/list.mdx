@@ -1,10 +1,10 @@
 ---
 title: "GET /api/transactions — List AI Transaction History"
 sidebarTitle: "GET /transactions"
-description: "GET /api/transactions — returns paginated history of all AI-initiated transactions across all sessions with status and Stellar hashes."
+description: "GET /api/transactions — returns paginated history of all AI-initiated transactions across all sessions, with status and Stellar hashes."
 ---
 
-Retrieve a paginated list of every transaction submitted by your AI sessions. Each record includes the asset, amount, recipient Stellar address, current lifecycle status, and — once confirmed — the Stellar transaction hash you can look up on any Stellar explorer. Use this endpoint to audit spending, reconcile balances, and track which transactions are still in flight.
+Retrieve a list of every transaction submitted by your AI sessions, ordered newest first. Each record includes the asset, amount, recipient Stellar address, current lifecycle status, and — once confirmed — the Stellar transaction hash you can look up on any Stellar explorer. Use this endpoint to audit spending, reconcile balances, and track which transactions are still in flight.
 
 ## Endpoint
 
@@ -22,12 +22,8 @@ Authorization: Bearer <token>
 
 ## Query parameters
 
-<ParamField query="limit" type="number" default="20">
-  Maximum number of transactions to return per page. Defaults to `20`.
-</ParamField>
-
-<ParamField query="offset" type="number" default="0">
-  Number of records to skip before starting the result set. Use with `limit` to paginate through large histories.
+<ParamField query="limit" type="number" default="50">
+  Maximum number of transactions to return. Defaults to `50`. Pass a lower value to reduce response size.
 </ParamField>
 
 ## Response
@@ -41,37 +37,83 @@ Returns an array of transaction objects ordered by `createdAt` descending (newes
 </ResponseField>
 
 <ResponseField name="action" type="string" required>
-  The operation type. Currently always `TRANSFER` for spend transactions.
+  The operation type. One of:
+  - `TRANSFER` — an asset transfer to a recipient address
+  - `CHECK_BALANCE` — a balance read (does not move funds)
+  - `VIEW_TRANSACTION_HISTORY` — a history read (does not move funds)
 </ResponseField>
 
 <ResponseField name="asset" type="string" required>
-  Ticker of the asset being sent, e.g. `"USDC"` or `"XLM"`.
+  Ticker of the asset involved, e.g. `"USDC"` or `"XLM"`.
 </ResponseField>
 
-<ResponseField name="amount" type="string" required>
-  Amount being transferred, expressed as a decimal string (e.g. `"42.5000000"`).
+<ResponseField name="amount" type="string">
+  Amount involved, expressed as a decimal string (e.g. `"42.5000000"`). May be `null` for non-transfer actions.
 </ResponseField>
 
-<ResponseField name="recipient" type="string" required>
-  The destination Stellar address (G-address) for this transaction.
+<ResponseField name="recipientAddress" type="string">
+  The resolved destination Stellar address (G-address). Populated for `TRANSFER` actions once the recipient has been resolved. `null` for non-transfer actions.
+</ResponseField>
+
+<ResponseField name="recipientInput" type="string">
+  The raw recipient value supplied by the AI, which may be a Stellar address, a contact alias, or a display name. Use this to understand what the AI asked to send to.
 </ResponseField>
 
 <ResponseField name="status" type="string" required>
   Current lifecycle status of the transaction. One of:
-  - `PENDING` — waiting in the approval queue (requires your manual approval)
-  - `SIGNING` — Pay3 is signing the Stellar transaction envelope
-  - `SUBMITTING` — the signed envelope is being broadcast to the Stellar network
-  - `SUCCESS` — transaction confirmed on Stellar
-  - `FAILED` — transaction failed; see the full detail endpoint for `rejectionReason`
-  - `EXPIRED` — the approval window closed before you approved it
+  - `CREATED` — transaction record created, not yet validated
+  - `VALIDATING` — policy engine is evaluating the request
+  - `AUTO_APPROVED` — passed all policy checks; being submitted automatically
+  - `PENDING_APPROVAL` — exceeds `manualApprovalThreshold`; awaiting your review
+  - `APPROVED` — you approved it; being submitted to the network
+  - `SIGNING` — transaction envelope is being signed
+  - `SUBMITTING` — signed envelope is being broadcast to the Stellar network
+  - `SUCCESS` — confirmed on the Stellar network
+  - `FAILED` — submission failed; see `rejectionReason` via [GET /api/transactions/:id](/api-reference/transactions/get)
+  - `REJECTED` — rejected by the policy engine before submission
+  - `EXPIRED` — the approval window elapsed before you approved
+  - `CANCELLED` — cancelled before reaching the network
 </ResponseField>
 
-<ResponseField name="stellarHash" type="string">
+<ResponseField name="policyDecision" type="string" required>
+  The decision made by the policy engine:
+  - `AUTO_EXECUTE` — transaction was within all limits and submitted without approval
+  - `PENDING_APPROVAL` — transaction exceeded `manualApprovalThreshold` and was routed to the approval queue
+  - `REJECTED` — transaction violated a policy rule and was blocked outright
+</ResponseField>
+
+<ResponseField name="stellarTransactionHash" type="string">
   The Stellar transaction hash, populated once the transaction reaches `SUCCESS`. Use this to look up the transaction on [Stellar Expert](https://stellar.expert) or [Horizon](https://horizon.stellar.org).
 </ResponseField>
 
-<ResponseField name="sessionId" type="string" required>
+<ResponseField name="aiSessionId" type="string" required>
   UUID of the AI session that initiated this transaction.
+</ResponseField>
+
+<ResponseField name="aiSession" type="object" required>
+  Summary of the AI session that submitted this transaction.
+
+  <Expandable title="aiSession fields">
+    <ResponseField name="id" type="string" required>
+      UUID of the AI session.
+    </ResponseField>
+    <ResponseField name="clientType" type="string" required>
+      AI client type (e.g. `"CURSOR"`, `"CLAUDE"`).
+    </ResponseField>
+  </Expandable>
+</ResponseField>
+
+<ResponseField name="contact" type="object">
+  If the recipient address matched a saved contact, this object contains the contact's details. `null` when no match was found.
+
+  <Expandable title="contact fields">
+    <ResponseField name="id" type="string" required>
+      UUID of the matched contact.
+    </ResponseField>
+    <ResponseField name="displayName" type="string" required>
+      Human-readable name of the contact.
+    </ResponseField>
+  </Expandable>
 </ResponseField>
 
 <ResponseField name="createdAt" type="string" required>
@@ -81,7 +123,7 @@ Returns an array of transaction objects ordered by `createdAt` descending (newes
 ## Example request
 
 ```bash
-curl "https://api.pay3.dev/api/transactions?limit=20&offset=0" \
+curl "https://api.pay3.dev/api/transactions?limit=20" \
   -H "Authorization: Bearer <token>"
 ```
 
@@ -94,10 +136,20 @@ curl "https://api.pay3.dev/api/transactions?limit=20&offset=0" \
     "action": "TRANSFER",
     "asset": "USDC",
     "amount": "42.5000000",
-    "recipient": "GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "recipientAddress": "GBXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+    "recipientInput": "alice",
     "status": "SUCCESS",
-    "stellarHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
-    "sessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "policyDecision": "AUTO_EXECUTE",
+    "stellarTransactionHash": "a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2",
+    "aiSessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "aiSession": {
+      "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+      "clientType": "CURSOR"
+    },
+    "contact": {
+      "id": "c1a2b3d4-0001-4abc-8def-000000000001",
+      "displayName": "Alice Johnson"
+    },
     "createdAt": "2025-07-08T12:00:00.000Z"
   },
   {
@@ -105,15 +157,22 @@ curl "https://api.pay3.dev/api/transactions?limit=20&offset=0" \
     "action": "TRANSFER",
     "asset": "XLM",
     "amount": "100.0000000",
-    "recipient": "GCYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
-    "status": "PENDING",
-    "stellarHash": null,
-    "sessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "recipientAddress": "GCYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
+    "recipientInput": "GCYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
+    "status": "PENDING_APPROVAL",
+    "policyDecision": "PENDING_APPROVAL",
+    "stellarTransactionHash": null,
+    "aiSessionId": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+    "aiSession": {
+      "id": "e3b0c442-98fc-1c14-9afb-f4c8996fb924",
+      "clientType": "CURSOR"
+    },
+    "contact": null,
     "createdAt": "2025-07-08T11:45:00.000Z"
   }
 ]
 ```
 
 <Note>
-  Transactions with a status of `PENDING` are awaiting your manual approval in the [approvals queue](/api-reference/approvals/list). They will transition to `EXPIRED` if not approved within 2 minutes of the approval request being created.
+  Transactions with a status of `PENDING_APPROVAL` are awaiting your manual approval in the [approvals queue](/api-reference/approvals/list). They will transition to `EXPIRED` if not approved within 2 minutes of the approval request being created.
 </Note>

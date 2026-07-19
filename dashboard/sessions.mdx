@@ -1,7 +1,7 @@
 ---
-title: "Manage AI Sessions and MCP Auth Tokens"
+title: "Create and Manage AI Payment Sessions in Pay3 Dashboard"
 sidebarTitle: "Sessions"
-description: "Create, configure, and revoke AI sessions for Claude, Cursor, ChatGPT, and other MCP-compatible AI assistants in Pay3."
+description: "Create, configure, and revoke AI sessions for Claude, Cursor, ChatGPT, and other MCP-compatible assistants — with on-chain session registration."
 ---
 
 A session is a time-limited permission grant that allows a specific AI assistant to request payments on your behalf. Each session is tied to exactly one smart account (the vault it draws from) and one spending policy (the rules it must follow). When the session expires — or when you revoke it — the AI loses all ability to request transactions, even if it still holds the MCP auth token.
@@ -67,7 +67,19 @@ Replace `<your-token-here>` with the token shown in the dashboard. Paste this JS
 
 ## Registering the session on-chain
 
-After copying your token, you must complete one final step: calling `add_session` on your Soroban vault contract. The dashboard shows the exact parameters you need — including the session public key, expiry timestamp, per-transaction maximum, and daily maximum — formatted for the Soroban CLI or Stellar Laboratory.
+After copying your token, you must complete one final step: calling `add_session` on your Soroban vault contract. The dashboard shows the exact parameters you need — including the session public key, expiry timestamp, per-transaction maximum, and daily maximum — ready to paste into the Soroban CLI or Stellar Laboratory.
+
+```bash
+soroban contract invoke \
+  --id <YOUR_CONTRACT_ID> \
+  --source <YOUR_WALLET_SECRET_KEY> \
+  --network testnet \
+  -- add_session \
+  --session <SESSION_PUBLIC_KEY> \
+  --expires_at <EXPIRES_AT_UNIX> \
+  --per_tx_max <PER_TX_MAX_STROOPS> \
+  --daily_max <DAILY_MAX_STROOPS>
+```
 
 <Note>
 The on-chain registration step is mandatory. Until you call `add_session` on your contract, the smart account will reject any payment requests from this session, even if the MCP token is valid.
@@ -77,15 +89,13 @@ This two-step process — off-chain session creation followed by on-chain regist
 
 ## Managing existing sessions
 
-The sessions list below the creation form shows all sessions associated with your account:
+The sessions list below the creation form shows all sessions currently active on your account:
 
 | Column | Description |
 |---|---|
 | **Client type** | The AI assistant this session was created for (e.g., CURSOR, CLAUDE) |
 | **Session public key** | The on-chain key registered with your vault contract |
-| **Policy** | The spending policy governing this session |
-| **Smart account** | The vault contract this session draws from |
-| **Status** | ACTIVE, EXPIRED, or REVOKED |
+| **Policy** | The spending policy name governing this session |
 | **Expiry** | The date and time when this session automatically expires |
 
 ### Revoking a session
@@ -98,4 +108,4 @@ Each AI assistant should have its own dedicated session. This gives you independ
 
 ### Session expiry
 
-Sessions expire automatically at the time set by your policy's `sessionDurationHours` field. An expired session is read-only in the list — you cannot reactivate it. Create a new session when you need continued access.
+Sessions expire automatically at the time determined by your policy's session duration. An expired session no longer appears in the active sessions list — you cannot reactivate it. Create a new session when you need continued access.

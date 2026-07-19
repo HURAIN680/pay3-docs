@@ -1,7 +1,7 @@
 ---
 title: "POST /api/policies — Create a Spending Policy"
 sidebarTitle: "POST /policies"
-description: "POST /api/policies — creates a new AI spending policy with budget limits, transaction caps, and allowed assets."
+description: "POST /api/policies — creates a new AI spending policy with budget limits, transaction caps, allowed assets, and optional rate limiting."
 ---
 
 Create a spending policy to define how much an AI session can spend, which assets it can use, and when transactions require your manual approval before hitting the Stellar network. Every AI session must be backed by exactly one policy. You can create a policy from a managed preset (with sensible defaults already filled in) or define completely custom limits for advanced use cases.
@@ -30,16 +30,16 @@ Authorization: Bearer <token>
   The template to base this policy on. Must be one of `CONSERVATIVE`, `BALANCED`, `DEFI`, or `CUSTOM`. When using a managed preset, Pay3 fills in all budget fields automatically — you only need to supply `name` and `preset`. Use `CUSTOM` to specify your own limits.
 </ParamField>
 
-<ParamField body="dailyBudget" type="number">
-  *(Required when `preset` is `CUSTOM`)* Maximum total spend per calendar day, in USD. Resets at midnight UTC.
+<ParamField body="dailyBudget" type="string">
+  *(Required when `preset` is `CUSTOM`)* Maximum total spend per calendar day, in USD. Resets at midnight UTC. Provide as a numeric string, e.g. `"250"`.
 </ParamField>
 
-<ParamField body="perTransactionMax" type="number">
-  *(Required when `preset` is `CUSTOM`)* Hard cap on a single transaction, in USD. Any transaction request above this amount is rejected immediately by the policy engine.
+<ParamField body="perTransactionMax" type="string">
+  *(Required when `preset` is `CUSTOM`)* Hard cap on a single transaction, in USD. Any transaction request above this amount is rejected immediately. Provide as a numeric string.
 </ParamField>
 
-<ParamField body="manualApprovalThreshold" type="number">
-  *(Required when `preset` is `CUSTOM`)* Transactions exceeding this USD amount (but within `perTransactionMax`) are held in the approval queue and require your explicit confirmation before execution.
+<ParamField body="manualApprovalThreshold" type="string">
+  *(Required when `preset` is `CUSTOM`)* Transactions exceeding this USD amount (but within `perTransactionMax`) are held in the approval queue and require your explicit confirmation before execution. Provide as a numeric string.
 </ParamField>
 
 <ParamField body="sessionDurationHours" type="number">
@@ -54,9 +54,86 @@ Authorization: Bearer <token>
   *(Optional)* Array of contact UUIDs from your Pay3 address book. When set, the AI may only send funds to these contacts. Omit to allow transfers to any Stellar address.
 </ParamField>
 
+<ParamField body="monthlyBudget" type="string">
+  *(Optional)* An optional monthly spend cap in USD, as a numeric string. Set to `null` to apply no monthly limit.
+</ParamField>
+
+<ParamField body="rateLimitPerMinute" type="number">
+  *(Optional)* Maximum number of transactions the AI may submit per minute. Omit or set to `null` to apply no rate limit.
+</ParamField>
+
 ## Response
 
-Returns the newly created policy object in full. The response shape mirrors the objects returned by [GET /api/policies](/api-reference/policies/list).
+Returns the newly created policy object in full. The response shape mirrors the objects returned by [GET /api/policies](/api-reference/policies/list). The HTTP status code is `201 Created`.
+
+### Response fields
+
+<ResponseField name="id" type="string" required>
+  Unique UUID assigned to the newly created policy.
+</ResponseField>
+
+<ResponseField name="name" type="string" required>
+  The display name as stored.
+</ResponseField>
+
+<ResponseField name="preset" type="string" required>
+  The preset used: `CONSERVATIVE`, `BALANCED`, `DEFI`, or `CUSTOM`.
+</ResponseField>
+
+<ResponseField name="dailyBudget" type="string" required>
+  Maximum total spend per day in USD, as a decimal string.
+</ResponseField>
+
+<ResponseField name="monthlyBudget" type="string">
+  Monthly spend cap in USD as a decimal string, or `null` if none was set.
+</ResponseField>
+
+<ResponseField name="perTransactionMax" type="string" required>
+  Per-transaction hard cap in USD as a decimal string.
+</ResponseField>
+
+<ResponseField name="manualApprovalThreshold" type="string" required>
+  Transactions above this amount (USD) will be routed to the approval queue.
+</ResponseField>
+
+<ResponseField name="sessionDurationHours" type="number" required>
+  Lifetime in hours for sessions created under this policy.
+</ResponseField>
+
+<ResponseField name="allowedAssets" type="array" required>
+  Asset codes the AI is permitted to transfer.
+</ResponseField>
+
+<ResponseField name="allowedActions" type="array" required>
+  Actions permitted under this policy. One or more of `CHECK_BALANCE`, `TRANSFER`, `VIEW_TRANSACTION_HISTORY`.
+</ResponseField>
+
+<ResponseField name="allowedRecipientIds" type="array" required>
+  Array of contact UUIDs allowed as recipients. Empty array means no recipient restriction.
+</ResponseField>
+
+<ResponseField name="rateLimitPerMinute" type="number">
+  Maximum transactions per minute. `null` if no rate limit was set.
+</ResponseField>
+
+<ResponseField name="isActive" type="boolean" required>
+  Always `true` for a newly created policy.
+</ResponseField>
+
+<ResponseField name="createdAt" type="string" required>
+  ISO 8601 timestamp when the policy was created.
+</ResponseField>
+
+<ResponseField name="updatedAt" type="string" required>
+  ISO 8601 timestamp when the policy was last modified. Equals `createdAt` on creation.
+</ResponseField>
+
+## Error responses
+
+| Status | Meaning |
+|--------|---------|
+| `400 Bad Request` | Missing required fields, invalid `preset` value, or malformed request body. |
+| `401 Unauthorized` | Missing or invalid bearer token. |
 
 <Tip>
   For most use cases, start with a managed preset (`CONSERVATIVE`, `BALANCED`, or `DEFI`). Each preset ships with carefully chosen defaults — you can always tighten them by creating a `CUSTOM` policy later once you know your AI's spending patterns.
@@ -83,14 +160,16 @@ curl -X POST https://api.pay3.dev/api/policies \
   -d '{
     "name": "My Custom Policy",
     "preset": "CUSTOM",
-    "dailyBudget": 250,
-    "perTransactionMax": 75,
-    "manualApprovalThreshold": 50,
+    "dailyBudget": "250",
+    "perTransactionMax": "75",
+    "manualApprovalThreshold": "50",
     "sessionDurationHours": 72,
     "allowedAssets": ["USDC", "XLM"],
     "allowedRecipientIds": [
       "b5c6d7e8-1234-5678-abcd-ef0123456789"
-    ]
+    ],
+    "monthlyBudget": null,
+    "rateLimitPerMinute": 10
   }'
 ```
 
@@ -102,11 +181,14 @@ curl -X POST https://api.pay3.dev/api/policies \
   "name": "My Custom Policy",
   "preset": "CUSTOM",
   "dailyBudget": "250.0000000",
+  "monthlyBudget": null,
   "perTransactionMax": "75.0000000",
   "manualApprovalThreshold": "50.0000000",
   "sessionDurationHours": 72,
   "allowedAssets": ["USDC", "XLM"],
+  "allowedActions": ["CHECK_BALANCE", "TRANSFER", "VIEW_TRANSACTION_HISTORY"],
   "allowedRecipientIds": ["b5c6d7e8-1234-5678-abcd-ef0123456789"],
+  "rateLimitPerMinute": 10,
   "isActive": true,
   "createdAt": "2025-07-08T14:30:00.000Z",
   "updatedAt": "2025-07-08T14:30:00.000Z"

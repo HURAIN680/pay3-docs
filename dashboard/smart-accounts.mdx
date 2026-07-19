@@ -1,7 +1,7 @@
 ---
-title: "Link Your Soroban Smart Account to Pay3"
+title: "Link and Manage Soroban Smart Account Vaults in Pay3"
 sidebarTitle: "Smart Accounts"
-description: "Learn how to link a Soroban smart account contract to Pay3 so AI sessions can spend from your on-chain USDC vault."
+description: "Link a Soroban vault contract to Pay3, deposit USDC, and register on-chain AI sessions to give agents safe, bounded spending access."
 ---
 
 A Smart Account is a Soroban contract deployed on the Stellar network that acts as a dedicated USDC vault for your AI agents. Instead of giving an AI assistant direct access to your personal wallet, you deposit a controlled amount of USDC into the smart account contract. AI sessions then draw from that vault, so your primary wallet is never exposed. The contract independently enforces on-chain spending limits — meaning even if Pay3's off-chain policy were bypassed, the contract itself would reject any transaction that violates its rules.
@@ -10,38 +10,89 @@ A Smart Account is a Soroban contract deployed on the Stellar network that acts 
 
 Every Soroban contract is identified by a 56-character contract ID starting with the letter **C**:
 
-```
-CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
+```text
+CXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX
 ```
 
 You receive this contract ID when you deploy the Pay3 vault contract to Stellar. Keep it somewhere safe — you'll need it to link the account and to register AI sessions on-chain.
 
 ## Soroban contract functions
 
-The Pay3 vault contract exposes four core functions you'll interact with directly:
+The Pay3 vault contract exposes the following functions:
+
+### initialize
 
 ```rust
-fn initialize(env: Env, owner: Address, usdc_token: Address)  // one-time setup
-fn deposit(env: Env, from: Address, amount: i128)             // add USDC to vault
-fn withdraw(env: Env, to: Address, amount: i128)              // owner withdraws
-fn get_balance(env: Env) -> i128                              // check vault balance
+pub fn initialize(env: Env, owner: Address, usdc_token: Address) -> Result<(), Error>
 ```
 
-<Accordion title="initialize — one-time setup">
-  Call `initialize` once immediately after deploying your contract. Pass your wallet address as `owner` and the USDC token contract address for the network you're using (testnet or mainnet). This function can only be called once and locks the owner address permanently.
-</Accordion>
+Call `initialize` once immediately after deploying your contract. Pass your wallet address as `owner` and the USDC token contract address for the network you're using (testnet or mainnet). This function can only be called once — it permanently locks the owner address and stores the token reference.
 
-<Accordion title="deposit — fund your vault">
-  Call `deposit` from your owner wallet to move USDC from your wallet into the vault. The `amount` parameter is in stroops (1 USDC = 10,000,000 stroops). The vault balance increases immediately on confirmation.
-</Accordion>
+### deposit
 
-<Accordion title="withdraw — recover funds">
-  Call `withdraw` to pull USDC back out of the vault into any Stellar address you control. Only the `owner` address set during initialization can call this function.
-</Accordion>
+```rust
+pub fn deposit(env: Env, from: Address, amount: i128) -> Result<(), Error>
+```
 
-<Accordion title="get_balance — check vault balance">
-  Call `get_balance` at any time to read the current USDC balance held in the vault. This is a read-only query and costs no fees.
-</Accordion>
+Call `deposit` from your owner wallet to move USDC from your wallet into the vault. The `amount` parameter is in stroops (1 USDC = 10,000,000 stroops). The vault balance increases immediately on confirmation.
+
+### withdraw
+
+```rust
+pub fn withdraw(env: Env, to: Address, amount: i128) -> Result<(), Error>
+```
+
+Call `withdraw` to pull USDC back out of the vault into any Stellar address you control. Only the `owner` address set during initialization can call this function.
+
+### add_session
+
+```rust
+pub fn add_session(
+    env: Env,
+    session: Address,
+    expires_at: u64,
+    per_tx_max: i128,
+    daily_max: i128,
+) -> Result<(), Error>
+```
+
+Call `add_session` to register an AI session on-chain after creating it in the dashboard. Pass the session public key as `session`, the expiry as a Unix timestamp, and the per-transaction and daily spending caps in stroops. Only the owner can call this function. Until you call `add_session`, the vault will reject any payment requests from that session.
+
+<Note>
+When you create a session in the dashboard, Pay3 shows you the exact `add_session` parameters pre-filled — including the session public key, expiry timestamp, per-transaction maximum, and daily maximum. Copy and run them without manual calculation.
+</Note>
+
+### revoke_session
+
+```rust
+pub fn revoke_session(env: Env, session: Address) -> Result<(), Error>
+```
+
+Call `revoke_session` to permanently disable a specific session key on-chain. This is a one-way operation — a revoked session cannot be re-enabled. You can also revoke sessions from the dashboard, but calling `revoke_session` directly gives you an on-chain guarantee that is independent of Pay3's servers.
+
+### transfer
+
+```rust
+pub fn transfer(env: Env, session: Address, to: Address, amount: i128) -> Result<(), Error>
+```
+
+Called by Pay3 when an AI session executes a payment. The vault checks that the session is not expired or revoked, that the `amount` is within `per_tx_max`, and that the running `daily_spent` total does not exceed `daily_max`. You never need to call `transfer` directly — Pay3 calls it on behalf of the session key.
+
+### get_balance
+
+```rust
+pub fn get_balance(env: Env) -> Result<i128, Error>
+```
+
+Returns the current USDC balance held in the vault in stroops. This is a read-only query and costs no fees.
+
+### get_session
+
+```rust
+pub fn get_session(env: Env, session: Address) -> Result<Session, Error>
+```
+
+Returns the on-chain record for a registered session, including its expiry, per-transaction cap, daily cap, daily spending so far, and revocation status. Use this to verify that a session was registered correctly.
 
 ## How to link a smart account
 
@@ -53,7 +104,7 @@ fn get_balance(env: Env) -> i128                              // check vault bal
     Enter your full Soroban contract ID (starting with **C**) in the Contract ID field.
   </Step>
   <Step title="Click Link contract">
-    Click the **Link contract** button. Pay3 validates the contract ID and registers it against your account. The linked contract ID appears in the list below the form (truncated as `CXXXXXXX…XXXXXX` for readability).
+    Click the **Link contract** button. Pay3 validates the contract ID and registers it against your account. The linked contract ID appears in the list below the form (truncated for readability).
   </Step>
   <Step title="Create an AI session">
     Once linked, you can select this smart account when creating a new AI session. The session will draw spending allowance from this vault.
@@ -62,7 +113,7 @@ fn get_balance(env: Env) -> i128                              // check vault bal
 
 ## Depositing USDC into your vault
 
-After linking, you need to fund the vault before any AI session can execute payments. Use the Stellar Laboratory, your preferred Stellar wallet app, or the Soroban CLI to call the `deposit` function:
+After linking, you need to fund the vault before any AI session can execute payments. Use the Stellar Laboratory, your preferred Stellar wallet app, or the Soroban CLI to call `deposit`:
 
 ```bash
 soroban contract invoke \
